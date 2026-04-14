@@ -15,7 +15,7 @@ const pool = new Pool({
   }
 });
 
-// 🔐 LOGIN
+// 🔐 LOGIN (DEBUG VERSION)
 app.get('/usuarios/login', async (req, res) => {
   const { correo, password } = req.query;
 
@@ -24,21 +24,39 @@ app.get('/usuarios/login', async (req, res) => {
   }
 
   try {
+    // 🔍 primero buscamos SOLO por correo
     const result = await pool.query(
-      `SELECT usuario_id, nombre, correo 
+      `SELECT usuario_id, nombre, correo, password_hash 
        FROM usuarios 
-       WHERE correo = $1 AND password_hash = $2`,
-      [correo, password]
+       WHERE correo = $1`,
+      [correo.trim()]
     );
 
-    if (result.rows.length > 0) {
-      res.json(result.rows[0]);
+    console.log("📦 Usuario encontrado:", result.rows);
+
+    // ❌ si no existe el usuario
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Usuario no existe' });
+    }
+
+    const user = result.rows[0];
+
+    console.log("🔑 Password DB:", user.password_hash);
+    console.log("🔑 Password APP:", password);
+
+    // 🔐 comparación manual
+    if (user.password_hash === password.trim()) {
+      return res.json({
+        usuario_id: user.usuario_id,
+        nombre: user.nombre,
+        correo: user.correo
+      });
     } else {
-      res.status(401).json({ error: 'Credenciales incorrectas' });
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
   } catch (error) {
-    console.error("Error en login:", error.message);
+    console.error("❌ Error en login:", error.message);
     res.status(500).json({ error: 'Error en el servidor' });
   }
 });
