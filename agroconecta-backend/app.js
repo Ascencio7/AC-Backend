@@ -27,7 +27,7 @@ app.get('/usuarios/login', async (req, res) => {
     const result = await pool.query(
       `SELECT usuario_id, nombre, correo 
        FROM usuarios 
-       WHERE correo = $1 AND password_hash = $2`,
+       WHERE correo = $1 AND "Password_hash" = $2`,
       [correo, password]
     );
 
