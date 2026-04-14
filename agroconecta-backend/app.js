@@ -7,13 +7,17 @@ app.use(cors());
 app.use(express.json());
 
 // 🔥 conexión PostgreSQL
+import { Pool } from "pg";
+
 const pool = new Pool({
   connectionString: 'postgresql://postgres:A_ascencio_21%24@db.artanswcrxwpcymcrsey.supabase.co:5432/postgres',
   ssl: {
+    require: true,
     rejectUnauthorized: false
   }
 });
 
+export default pool;
 
 // 🔐 LOGIN
 app.get('/usuarios/login', async (req, res) => {
