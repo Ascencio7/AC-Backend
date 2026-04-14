@@ -1,14 +1,12 @@
-const express = require('express');
-const { Pool } = require('pg');
-const cors = require('cors');
+import express from 'express';
+import { Pool } from 'pg';
+import cors from 'cors';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // 🔥 conexión PostgreSQL
-import { Pool } from "pg";
-
 const pool = new Pool({
   connectionString: 'postgresql://postgres:A_ascencio_21%24@db.artanswcrxwpcymcrsey.supabase.co:5432/postgres',
   ssl: {
@@ -17,20 +15,13 @@ const pool = new Pool({
   }
 });
 
-export default pool;
-
 // 🔐 LOGIN
 app.get('/usuarios/login', async (req, res) => {
   const { correo, password } = req.query;
 
-  // ✅ Validación básica
   if (!correo || !password) {
     return res.status(400).json({ error: 'Faltan datos' });
   }
-
-  console.log("Intento de login:");
-  console.log("Correo:", correo);
-  console.log("Password:", password);
 
   try {
     const result = await pool.query(
@@ -52,7 +43,7 @@ app.get('/usuarios/login', async (req, res) => {
   }
 });
 
-// 🚀 servidor accesible desde Android
+// 🚀 servidor
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
