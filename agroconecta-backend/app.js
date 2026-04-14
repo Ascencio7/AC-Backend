@@ -49,6 +49,8 @@ app.get('/usuarios/login', async (req, res) => {
 });
 
 // 🚀 servidor accesible desde Android
-app.listen(3000, '0.0.0.0', () => {
-  console.log('Servidor corriendo en http://0.0.0.0:3000');
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
