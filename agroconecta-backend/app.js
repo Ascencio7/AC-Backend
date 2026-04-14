@@ -8,12 +8,12 @@ app.use(express.json());
 
 // 🔥 conexión PostgreSQL
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'agroconecta',
-  password: 'ascencio', // contraseña de PostgreSQL
-  port: 5432,
+  connectionString: 'postgresql://postgres:A_ascencio_21$@db.artanswcrxwpcymcrsey.supabase.co:5432/postgres',
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
+
 
 // 🔐 LOGIN
 app.get('/usuarios/login', async (req, res) => {
