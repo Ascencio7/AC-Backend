@@ -39,7 +39,7 @@ app.get('/usuarios/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    if (user && user["Password_has"] == password){
+    if (user && user["Password_hash"] == password){
       return res.json({
         usuarioId: user["Usuario_Id"],
         nombre: user["Nombre"],
