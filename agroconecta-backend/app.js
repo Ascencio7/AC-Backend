@@ -8,13 +8,12 @@ app.use(express.json());
 
 // conexión PostgreSQL
 const pool = new Pool({
-  connectionString: 'postgresql://postgres.artanswcrxwpcymcrsey:A_ascencio_21%24@aws-1-us-east-2.pooler.supabase.com:6543/postgres',
+  connectionString: process.env.DATABASE_URL,
 
   ssl: {
     require: true,
     rejectUnauthorized: false
   },
-  family:4
 });
 
 // LOGIN
