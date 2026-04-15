@@ -37,9 +37,9 @@ app.get('/usuarios/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT "Usuario_Id", "Nombre", "Correo", "Password_hash"
-       FROM "Usuarios"
-       WHERE "Correo" = $1`,
+      `SELECT usuario_id, nombre, correo, password_hash
+       FROM usuarios
+       WHERE correo = $1`,
       [correo]
     );
 
@@ -49,12 +49,12 @@ app.get('/usuarios/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    // ⚠️ Comparación simple (temporal)
-    if (user["Password_hash"]?.trim() === password?.trim()) {
+    // ✅ Comparación correcta
+    if (user.password_hash?.trim() === password?.trim()) {
       return res.json({
-        usuario_id: user["Usuario_Id"],
-        nombre: user["Nombre"],
-        correo: user["Correo"]
+        usuario_id: user.usuario_id,
+        nombre: user.nombre,
+        correo: user.correo
       });
     } else {
       return res.status(401).json({ error: "Credenciales incorrectas" });
