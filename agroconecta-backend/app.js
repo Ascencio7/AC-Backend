@@ -54,9 +54,9 @@ app.get('/usuarios/login', async (req, res) => {
         nombre: user["Nombre"],
         correo: user["Correo"]
       });
+    }else{
+      return res.status(401).json({ error: "Credenciales incorrectas" });
     }
-
-    return res.status(401).json({ error: "Credenciales incorrectas" });
 
   } catch (error) {
     console.error("❌ ERROR BACKEND:", error);
