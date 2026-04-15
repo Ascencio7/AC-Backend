@@ -6,7 +6,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔥 conexión PostgreSQL
+// conexión PostgreSQL
 const pool = new Pool({
   connectionString: 'postgresql://postgres:A_ascencio_21%24@db.artanswcrxwpcymcrsey.supabase.co:5432/postgres',
   ssl: {
@@ -15,13 +15,11 @@ const pool = new Pool({
   }
 });
 
-// 🔐 LOGIN
+// LOGIN
 app.get('/usuarios/login', async (req, res) => {
   const { correo, password } = req.query;
 
-  console.log("➡️ REQUEST:");
-  console.log("correo:", correo);
-  console.log("password:", password);
+  console.log("➡️ REQUEST:", correo, password);
 
   try {
     const result = await pool.query(
@@ -39,26 +37,25 @@ app.get('/usuarios/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    if (user && user["Password_hash"] == password){
+    console.log("DB password:", user.Password_hash);
+
+    if (user.Password_hash === password) {
       return res.json({
-        usuarioId: user["Usuario_Id"],
-        nombre: user["Nombre"],
-        correo: user["Correo"],
+        usuario_id: user.Usuario_Id,
+        nombre: user.Nombre,
+        correo: user.Correo
       });
-    }else{
-      return res.status(401).json({error: "Credenciales incorrectas"});
     }
 
-    }
-  catch (error) {
-    console.error("❌ Error en login:", error.message);
+    return res.status(401).json({ error: "Credenciales incorrectas" });
+
+  } catch (error) {
+    console.error("❌ ERROR BACKEND:", error);
     return res.status(500).json({ error: "Error en el servidor" });
   }
 });
 
-// 🚀 servidor
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log("Servidor corriendo en puerto", PORT);
 });
