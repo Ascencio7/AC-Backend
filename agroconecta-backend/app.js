@@ -25,9 +25,9 @@ app.get('/usuarios/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT usuario_id, nombre, correo, "Password_hash"
-       FROM usuarios
-       WHERE correo = $1`,
+      `SELECT "Usuario_Id", "Nombre", "Correo", "Password_hash"
+       FROM "Usuarios"
+       WHERE "Correo" = $1`,
       [correo]
     );
 
@@ -39,22 +39,18 @@ app.get('/usuarios/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    const dbPassword = user["Password_hash"];
-
-    console.log("🔑 DB password:", dbPassword);
-    console.log("🔑 APP password:", password);
-
-    if (dbPassword === password) {
+    if (user && user["Password_has"] == password){
       return res.json({
-        usuario_id: user.usuario_id,
-        nombre: user.nombre,
-        correo: user.correo
+        usuarioId: user["Usuario_Id"],
+        nombre: user["Nombre"],
+        correo: user["Correo"],
       });
+    }else{
+      return res.status(401).json({error: "Credenciales incorrectas"});
     }
 
-    return res.status(401).json({ error: "Credenciales incorrectas" });
-
-  } catch (error) {
+    }
+  catch (error) {
     console.error("❌ Error en login:", error.message);
     return res.status(500).json({ error: "Error en el servidor" });
   }
