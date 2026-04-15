@@ -6,10 +6,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// conexión PostgreSQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-
   ssl: {
     require: true,
     rejectUnauthorized: false
@@ -38,13 +36,15 @@ app.get('/usuarios/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    console.log("DB password:", user.Password_hash);
+    // 🔥 usar minúsculas
+    console.log("🔑 DB password:", user.password_hash);
+    console.log("🔑 APP password:", password);
 
-    if (user.Password_hash === password) {
+    if (user.password_hash.trim() === password.trim()) {
       return res.json({
-        usuario_id: user.Usuario_Id,
-        nombre: user.Nombre,
-        correo: user.Correo
+        usuario_id: user.usuario_id,
+        nombre: user.nombre,
+        correo: user.correo
       });
     }
 
