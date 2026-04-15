@@ -12,7 +12,8 @@ const pool = new Pool({
   ssl: {
     require: true,
     rejectUnauthorized: false
-  }
+  },
+  family:4
 });
 
 // LOGIN
