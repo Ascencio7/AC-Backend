@@ -12,10 +12,15 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT,
-  ssl:{
+  ssl: {
     require: true,
     rejectUnauthorized: false
   }
+});
+
+// ruta base (opcional)
+app.get('/', (req, res) => {
+  res.send('API funcionando 🚀');
 });
 
 // LOGIN
@@ -40,15 +45,14 @@ app.get('/usuarios/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    // 🔥 usar minúsculas
-    console.log("🔑 DB password:", user.password_hash);
+    console.log("🔑 DB password:", user["Password_hash"]);
     console.log("🔑 APP password:", password);
 
-    if (user.password_hash.trim() === password.trim()) {
+    if (user["Password_hash"].trim() === password.trim()) {
       return res.json({
-        usuario_id: user.usuario_id,
-        nombre: user.nombre,
-        correo: user.correo
+        usuario_id: user["Usuario_Id"],
+        nombre: user["Nombre"],
+        correo: user["Correo"]
       });
     }
 
