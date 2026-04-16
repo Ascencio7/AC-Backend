@@ -6,12 +6,16 @@ const { Pool } = pkg;
 
 const app = express();
 
-// 🔥 MIDDLEWARES (CLAVE)
+// =========================
+// 🔥 MIDDLEWARES
+// =========================
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // ✅ FIX PRINCIPAL
+app.use(express.urlencoded({ extended: true }));
 
-// 🔗 Conexión a Supabase
+// =========================
+// 🔗 CONEXIÓN SUPABASE
+// =========================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -19,7 +23,9 @@ const pool = new Pool({
   }
 });
 
-// ✅ Verificar conexión
+// =========================
+// ✅ CHECK DB CONNECTION
+// =========================
 pool.connect()
   .then(client => {
     console.log("✅ Conectado a Supabase");
@@ -29,20 +35,22 @@ pool.connect()
     console.error("❌ Error conectando a Supabase:", err);
   });
 
-// Ruta base
+// =========================
+// 🏠 RUTA BASE
+// =========================
 app.get('/', (req, res) => {
-  return res.status(200).json({ mensaje: 'API funcionando 🚀' });
+  res.status(200).json({ mensaje: 'API funcionando 🚀' });
 });
 
-
-// 🔐 LOGIN (ROBUSTO)
+// =========================
+// 🔐 LOGIN
+// =========================
 app.post('/login', async (req, res) => {
 
-  console.log("📥 BODY RECIBIDO:", req.body); // 🔍 DEBUG
+  console.log("📥 LOGIN BODY:", req.body);
 
   const { correo, password } = req.body;
 
-  // 🔍 Validación básica
   if (!correo || !password) {
     return res.status(200).json({
       success: false,
@@ -67,9 +75,6 @@ app.post('/login', async (req, res) => {
       [correo]
     );
 
-    console.log("📊 RESULTADO QUERY:", result.rows); // 🔍 DEBUG
-
-    // ❌ Usuario no existe
     if (result.rows.length === 0) {
       return res.status(200).json({
         success: false,
@@ -79,15 +84,11 @@ app.post('/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    console.log("👤 USUARIO:", user); // 🔍 DEBUG
-
-    // ⚠️ Validación segura (evita crash si viene null)
     const dbPassword = user.password_hash ? user.password_hash.trim() : "";
     const inputPassword = password ? password.trim() : "";
 
     if (dbPassword === inputPassword) {
 
-      // ✅ LOGIN CORRECTO
       return res.status(200).json({
         success: true,
         usuario_id: user.usuario_id,
@@ -97,7 +98,6 @@ app.post('/login', async (req, res) => {
 
     } else {
 
-      // ❌ Password incorrecto
       return res.status(200).json({
         success: false,
         message: "Credenciales incorrectas"
@@ -106,17 +106,18 @@ app.post('/login', async (req, res) => {
 
   } catch (error) {
 
-    // 🔥 ERROR COMPLETO (no solo message)
-    console.error("❌ ERROR BACKEND COMPLETO:", error);
+    console.error("❌ LOGIN ERROR:", error);
 
-    return res.status(200).json({
+    return res.status(500).json({
       success: false,
       message: "Error en el servidor"
     });
   }
 });
 
+// =========================
 // 📋 LISTAR USUARIOS
+// =========================
 app.get('/usuarios', async (req, res) => {
 
   try {
@@ -130,16 +131,14 @@ app.get('/usuarios', async (req, res) => {
         estado
       FROM usuarios
       WHERE estado = true
-      ORDER BY usuario_id`
+      ORDER BY usuario_id DESC`
     );
-
-    console.log("📊 USUARIOS:", result.rows);
 
     return res.status(200).json(result.rows);
 
   } catch (error) {
 
-    console.error("❌ ERROR LISTAR USUARIOS:", error);
+    console.error("❌ ERROR LISTAR:", error);
 
     return res.status(500).json({
       error: "Error al obtener usuarios"
@@ -147,12 +146,20 @@ app.get('/usuarios', async (req, res) => {
   }
 });
 
+// =========================
+// ✏️ ACTUALIZAR USUARIO
+// =========================
 app.put('/usuarios/:id', async (req, res) => {
 
   const { id } = req.params;
   const { nombre, correo, telefono, estado } = req.body;
 
-  console.log("📥 UPDATE:", req.body);
+  if (!nombre || !correo) {
+    return res.status(400).json({
+      success: false,
+      message: "Datos incompletos"
+    });
+  }
 
   try {
 
@@ -163,7 +170,13 @@ app.put('/usuarios/:id', async (req, res) => {
            telefono = $3,
            estado = $4
        WHERE usuario_id = $5`,
-      [nombre, correo, telefono, estado, id]
+      [
+        nombre,
+        correo,
+        telefono || null,
+        estado ?? true,
+        id
+      ]
     );
 
     return res.status(200).json({
@@ -182,18 +195,29 @@ app.put('/usuarios/:id', async (req, res) => {
   }
 });
 
+// =========================
+// 🗑️ ELIMINAR (LÓGICO)
+// =========================
 app.delete('/usuarios/:id', async (req, res) => {
 
   const { id } = req.params;
 
   try {
 
-    await pool.query(
+    const result = await pool.query(
       `UPDATE usuarios
        SET estado = false
-       WHERE usuario_id = $1`,
+       WHERE usuario_id = $1
+       RETURNING usuario_id`,
       [id]
     );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado"
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -211,9 +235,11 @@ app.delete('/usuarios/:id', async (req, res) => {
   }
 });
 
-
-// 🚀 Puerto
+// =========================
+// 🚀 INICIAR SERVIDOR
+// =========================
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log("Servidor corriendo en puerto", PORT);
+  console.log("🚀 Servidor corriendo en puerto", PORT);
 });
