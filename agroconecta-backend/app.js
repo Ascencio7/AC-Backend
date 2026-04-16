@@ -123,12 +123,14 @@ app.get('/usuarios', async (req, res) => {
 
     const result = await pool.query(
       `SELECT 
-          usuario_id,
-          nombre,
-          correo
-       FROM usuarios
-       WHERE estado = true
-       ORDER BY usuario_id`
+        usuario_id,
+        nombre,
+        correo,
+        telefono,
+        estado
+      FROM usuarios
+      WHERE estado = true
+      ORDER BY usuario_id`
     );
 
     console.log("📊 USUARIOS:", result.rows);
@@ -141,6 +143,70 @@ app.get('/usuarios', async (req, res) => {
 
     return res.status(500).json({
       error: "Error al obtener usuarios"
+    });
+  }
+});
+
+app.put('/usuarios/:id', async (req, res) => {
+
+  const { id } = req.params;
+  const { nombre, correo, telefono, estado } = req.body;
+
+  console.log("📥 UPDATE:", req.body);
+
+  try {
+
+    await pool.query(
+      `UPDATE usuarios
+       SET nombre = $1,
+           correo = $2,
+           telefono = $3,
+           estado = $4
+       WHERE usuario_id = $5`,
+      [nombre, correo, telefono, estado, id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Usuario actualizado"
+    });
+
+  } catch (error) {
+
+    console.error("❌ ERROR UPDATE:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error al actualizar usuario"
+    });
+  }
+});
+
+app.delete('/usuarios/:id', async (req, res) => {
+
+  const { id } = req.params;
+
+  try {
+
+    await pool.query(
+      `UPDATE usuarios
+       SET estado = false
+       WHERE usuario_id = $1`,
+      [id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Usuario eliminado"
+    });
+
+  } catch (error) {
+
+    console.error("❌ ERROR DELETE:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error al eliminar usuario"
     });
   }
 });
