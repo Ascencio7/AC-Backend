@@ -6,16 +6,12 @@ const { Pool } = pkg;
 
 const app = express();
 
-// =========================
-// 🔥 MIDDLEWARES
-// =========================
+// Medios de comunicacion de la API
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// =========================
-// 🔗 CONEXIÓN SUPABASE
-// =========================
+// Conexion a Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -23,9 +19,7 @@ const pool = new Pool({
   }
 });
 
-// =========================
-// ✅ CHECK DB CONNECTION
-// =========================
+// Confirmacion de conexion a Supabase
 pool.connect()
   .then(client => {
     console.log("✅ Conectado a Supabase");
@@ -35,16 +29,12 @@ pool.connect()
     console.error("❌ Error conectando a Supabase:", err);
   });
 
-// =========================
-// 🏠 RUTA BASE
-// =========================
+// Ruta base de la API para pruebas
 app.get('/', (req, res) => {
   res.status(200).json({ mensaje: 'API funcionando 🚀' });
 });
 
-// =========================
-// 🔐 LOGIN
-// =========================
+// Iniciar Sesion
 app.post('/login', async (req, res) => {
 
   console.log("📥 LOGIN BODY:", req.body);
@@ -118,13 +108,10 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// =========================
-// 📋 LISTAR USUARIOS
-// =========================
+// Listar los usuarios registrados activos
 app.get('/usuarios', async (req, res) => {
 
   try {
-
     const result = await pool.query(
       `SELECT 
         usuario_id,
@@ -149,9 +136,7 @@ app.get('/usuarios', async (req, res) => {
   }
 });
 
-// =========================
-// ✏️ ACTUALIZAR USUARIO
-// =========================
+// Actualizar los datos del usuario
 app.put('/usuarios/:id', async (req, res) => {
 
   const { id } = req.params;
@@ -165,7 +150,6 @@ app.put('/usuarios/:id', async (req, res) => {
   }
 
   try {
-
     await pool.query(
       `UPDATE usuarios
        SET nombre = $1,
@@ -198,9 +182,7 @@ app.put('/usuarios/:id', async (req, res) => {
   }
 });
 
-// =========================
-// 🗑️ ELIMINAR (LÓGICO)
-// =========================
+// Eliminar logicamente el usuario, pasando su estado a false
 app.delete('/usuarios/:id', async (req, res) => {
 
   const { id } = req.params;
@@ -238,7 +220,7 @@ app.delete('/usuarios/:id', async (req, res) => {
   }
 });
 
-// AGREGAR USUARIOS
+// Agrear un nuevo usuario
 app.post('/usuarios', async (req, res) => {
 
   const { nombre, correo, password, telefono, rol_id } = req.body;
@@ -285,9 +267,7 @@ app.post('/usuarios', async (req, res) => {
   }
 });
 
-// =========================
-// 📋 LISTAR ROLES
-// =========================
+// Listar los roles para que aparezcan en el select de Android
 app.get('/roles', async (req, res) => {
 
   try {
@@ -309,9 +289,7 @@ app.get('/roles', async (req, res) => {
   }
 });
 
-// =========================
-// 🚀 INICIAR SERVIDOR
-// =========================
+// Iniciar el servidor
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
