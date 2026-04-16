@@ -5,10 +5,18 @@ import cors from 'cors';
 const { Pool } = pkg;
 
 const app = express();
+
+// 🔥 IMPORTANTE
 app.use(cors());
 app.use(express.json());
 
-// 🔗 Conexión a Supabase usando DATABASE_URL
+// 🔥 FORZAR JSON (clave para Retrofit)
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
+// 🔗 Conexión a Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -16,7 +24,7 @@ const pool = new Pool({
   }
 });
 
-// ✅ Verificar conexión al iniciar
+// ✅ Verificar conexión
 pool.connect()
   .then(client => {
     console.log("✅ Conectado a Supabase");
@@ -28,7 +36,7 @@ pool.connect()
 
 // Ruta base
 app.get('/', (req, res) => {
-  res.send('API funcionando 🚀');
+  return res.status(200).json({ mensaje: 'API funcionando 🚀' });
 });
 
 // 🔐 LOGIN
@@ -43,11 +51,11 @@ app.get('/usuarios/login', async (req, res) => {
           u.correo, 
           u.password_hash,
           r.nombre AS rol
-      FROM usuarios u
-      LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
-      LEFT JOIN roles r ON ur.rol_id = r.rol_id
-      WHERE u.correo = $1 AND u.estado = true
-      LIMIT 1`,
+       FROM usuarios u
+       LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
+       LEFT JOIN roles r ON ur.rol_id = r.rol_id
+       WHERE u.correo = $1 AND u.estado = true
+       LIMIT 1`,
       [correo]
     );
 
@@ -57,14 +65,16 @@ app.get('/usuarios/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    // ✅ Comparación correcta
+    // ✅ Validación password
     if (user.password_hash?.trim() === password?.trim()) {
-      return res.json({
+
+      return res.status(200).json({
         usuario_id: user.usuario_id,
         nombre: user.nombre,
         correo: user.correo,
         rol: user.rol || "CLIENTE"
       });
+
     } else {
       return res.status(401).json({ error: "Credenciales incorrectas" });
     }
