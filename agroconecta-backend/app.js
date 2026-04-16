@@ -66,6 +66,7 @@ app.post('/login', async (req, res) => {
           u.nombre, 
           u.correo, 
           u.password_hash,
+          r.rol_id,
           r.nombre AS rol
        FROM usuarios u
        LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
@@ -93,7 +94,9 @@ app.post('/login', async (req, res) => {
         success: true,
         usuario_id: user.usuario_id,
         nombre: user.nombre,
-        rol: user.rol || "CLIENTE"
+        correo: user.correo,
+        rol_id: user.rol_id,
+        rol: user.rol
       });
 
     } else {
@@ -231,6 +234,77 @@ app.delete('/usuarios/:id', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error al eliminar usuario"
+    });
+  }
+});
+
+// AGREGAR USUARIOS
+app.post('/usuarios', async (req, res) => {
+
+  const { nombre, correo, password, telefono, rol_id } = req.body;
+
+  if (!nombre || !correo || !password || !rol_id) {
+    return res.status(400).json({
+      success: false,
+      message: "Datos incompletos"
+    });
+  }
+
+  try {
+
+    // 1. Crear usuario
+    const userResult = await pool.query(
+      `INSERT INTO usuarios (nombre, correo, password_hash, telefono)
+       VALUES ($1, $2, $3, $4)
+       RETURNING usuario_id`,
+      [nombre, correo, password, telefono || null]
+    );
+
+    const usuario_id = userResult.rows[0].usuario_id;
+
+    // 2. Asignar rol
+    await pool.query(
+      `INSERT INTO usuarios_roles (usuario_id, rol_id)
+       VALUES ($1, $2)`,
+      [usuario_id, rol_id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Usuario creado correctamente"
+    });
+
+  } catch (error) {
+
+    console.error("❌ ERROR CREATE USER:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error al crear usuario"
+    });
+  }
+});
+
+// =========================
+// 📋 LISTAR ROLES
+// =========================
+app.get('/roles', async (req, res) => {
+
+  try {
+
+    const result = await pool.query(
+      `SELECT rol_id, nombre FROM roles ORDER BY rol_id`
+    );
+
+    return res.status(200).json(result.rows);
+
+  } catch (error) {
+
+    console.error("❌ ERROR ROLES:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error al obtener roles"
     });
   }
 });
