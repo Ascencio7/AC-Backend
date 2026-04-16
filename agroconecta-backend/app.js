@@ -24,7 +24,7 @@ const pool = new Pool({
 });
 
 // =========================
-// ✅ CHECK DB CONNECTION
+// ✅ CHECK DB
 // =========================
 pool.connect()
   .then(client => {
@@ -32,27 +32,31 @@ pool.connect()
     client.release();
   })
   .catch(err => {
-    console.error("❌ Error conectando a Supabase:", err);
+    console.error("❌ Error conexión DB:", err);
   });
 
 // =========================
 // 🏠 RUTA BASE
 // =========================
 app.get('/', (req, res) => {
-  res.status(200).json({ mensaje: 'API funcionando 🚀' });
+  res.status(200).json({
+    success: true,
+    message: "API funcionando 🚀"
+  });
 });
 
 // =========================
-// 🔐 LOGIN
+// 🔐 LOGIN (CORREGIDO)
 // =========================
 app.post('/login', async (req, res) => {
 
   console.log("📥 LOGIN BODY:", req.body);
 
-  const { correo, password } = req.body;
+  const correoSafe = req.body.correo?.trim().toLowerCase();
+  const password = req.body.password?.trim();
 
-  if (!correo || !password) {
-    return res.status(200).json({
+  if (!correoSafe || !password) {
+    return res.status(400).json({
       success: false,
       message: "Datos incompletos"
     });
@@ -72,11 +76,11 @@ app.post('/login', async (req, res) => {
        LEFT JOIN roles r ON ur.rol_id = r.rol_id
        WHERE u.correo = $1 AND u.estado = true
        LIMIT 1`,
-      [correo]
+      [correoSafe]
     );
 
     if (result.rows.length === 0) {
-      return res.status(200).json({
+      return res.status(404).json({
         success: false,
         message: "Usuario no existe"
       });
@@ -84,25 +88,21 @@ app.post('/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    const dbPassword = user.password_hash ? user.password_hash.trim() : "";
-    const inputPassword = password ? password.trim() : "";
+    const dbPassword = user.password_hash?.trim() || "";
 
-    if (dbPassword === inputPassword) {
-
-      return res.status(200).json({
-        success: true,
-        usuario_id: user.usuario_id,
-        nombre: user.nombre,
-        rol: user.rol || "CLIENTE"
-      });
-
-    } else {
-
-      return res.status(200).json({
+    if (dbPassword !== password) {
+      return res.status(401).json({
         success: false,
         message: "Credenciales incorrectas"
       });
     }
+
+    return res.status(200).json({
+      success: true,
+      usuario_id: user.usuario_id,
+      nombre: user.nombre,
+      rol: user.rol || "CLIENTE"
+    });
 
   } catch (error) {
 
@@ -134,14 +134,18 @@ app.get('/usuarios', async (req, res) => {
       ORDER BY usuario_id DESC`
     );
 
-    return res.status(200).json(result.rows);
+    return res.status(200).json({
+      success: true,
+      data: result.rows
+    });
 
   } catch (error) {
 
-    console.error("❌ ERROR LISTAR:", error);
+    console.error("❌ LISTAR ERROR:", error);
 
     return res.status(500).json({
-      error: "Error al obtener usuarios"
+      success: false,
+      message: "Error al obtener usuarios"
     });
   }
 });
@@ -152,7 +156,16 @@ app.get('/usuarios', async (req, res) => {
 app.put('/usuarios/:id', async (req, res) => {
 
   const { id } = req.params;
-  const { nombre, correo, telefono, estado } = req.body;
+
+  const nombre = req.body.nombre?.trim();
+  const correo = req.body.correo?.trim();
+  const telefono = req.body.telefono?.trim();
+
+  const estado =
+    req.body.estado === true ||
+    req.body.estado === "true" ||
+    req.body.estado === 1 ||
+    req.body.estado === "1";
 
   if (!nombre || !correo) {
     return res.status(400).json({
@@ -163,21 +176,23 @@ app.put('/usuarios/:id', async (req, res) => {
 
   try {
 
-    await pool.query(
+    const result = await pool.query(
       `UPDATE usuarios
        SET nombre = $1,
            correo = $2,
            telefono = $3,
            estado = $4
-       WHERE usuario_id = $5`,
-      [
-        nombre,
-        correo,
-        telefono || null,
-        estado ?? true,
-        id
-      ]
+       WHERE usuario_id = $5
+       RETURNING usuario_id`,
+      [nombre, correo, telefono || null, estado, id]
     );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado"
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -186,7 +201,7 @@ app.put('/usuarios/:id', async (req, res) => {
 
   } catch (error) {
 
-    console.error("❌ ERROR UPDATE:", error);
+    console.error("❌ UPDATE ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -196,7 +211,7 @@ app.put('/usuarios/:id', async (req, res) => {
 });
 
 // =========================
-// 🗑️ ELIMINAR (LÓGICO)
+// 🗑️ ELIMINAR USUARIO (LÓGICO)
 // =========================
 app.delete('/usuarios/:id', async (req, res) => {
 
@@ -226,7 +241,7 @@ app.delete('/usuarios/:id', async (req, res) => {
 
   } catch (error) {
 
-    console.error("❌ ERROR DELETE:", error);
+    console.error("❌ DELETE ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -236,7 +251,7 @@ app.delete('/usuarios/:id', async (req, res) => {
 });
 
 // =========================
-// 🚀 INICIAR SERVIDOR
+// 🚀 START SERVER
 // =========================
 const PORT = process.env.PORT || 3000;
 
