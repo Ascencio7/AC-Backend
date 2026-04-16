@@ -6,8 +6,10 @@ const { Pool } = pkg;
 
 const app = express();
 
+// 🔥 MIDDLEWARES (CLAVE)
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // ✅ FIX PRINCIPAL
 
 // 🔗 Conexión a Supabase
 const pool = new Pool({
@@ -33,8 +35,10 @@ app.get('/', (req, res) => {
 });
 
 
-// 🔐 LOGIN (CORREGIDO)
+// 🔐 LOGIN (ROBUSTO)
 app.post('/login', async (req, res) => {
+
+  console.log("📥 BODY RECIBIDO:", req.body); // 🔍 DEBUG
 
   const { correo, password } = req.body;
 
@@ -63,6 +67,8 @@ app.post('/login', async (req, res) => {
       [correo]
     );
 
+    console.log("📊 RESULTADO QUERY:", result.rows); // 🔍 DEBUG
+
     // ❌ Usuario no existe
     if (result.rows.length === 0) {
       return res.status(200).json({
@@ -73,8 +79,13 @@ app.post('/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    // ⚠️ Comparación simple (luego puedes usar bcrypt)
-    if (user.password_hash?.trim() === password?.trim()) {
+    console.log("👤 USUARIO:", user); // 🔍 DEBUG
+
+    // ⚠️ Validación segura (evita crash si viene null)
+    const dbPassword = user.password_hash ? user.password_hash.trim() : "";
+    const inputPassword = password ? password.trim() : "";
+
+    if (dbPassword === inputPassword) {
 
       // ✅ LOGIN CORRECTO
       return res.status(200).json({
@@ -94,7 +105,9 @@ app.post('/login', async (req, res) => {
     }
 
   } catch (error) {
-    console.error("❌ ERROR BACKEND:", error.message);
+
+    // 🔥 ERROR COMPLETO (no solo message)
+    console.error("❌ ERROR BACKEND COMPLETO:", error);
 
     return res.status(200).json({
       success: false,
