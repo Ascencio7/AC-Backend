@@ -37,9 +37,17 @@ app.get('/usuarios/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT usuario_id, nombre, correo, password_hash
-       FROM usuarios
-       WHERE correo = $1`,
+      `SELECT 
+          u.usuario_id, 
+          u.nombre, 
+          u.correo, 
+          u.password_hash,
+          r.nombre AS rol
+      FROM usuarios u
+      LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
+      LEFT JOIN roles r ON ur.rol_id = r.rol_id
+      WHERE u.correo = $1 AND u.estado = true
+      LIMIT 1`,
       [correo]
     );
 
@@ -54,7 +62,8 @@ app.get('/usuarios/login', async (req, res) => {
       return res.json({
         usuario_id: user.usuario_id,
         nombre: user.nombre,
-        correo: user.correo
+        correo: user.correo,
+        rol: user.rol || "CLIENTE"
       });
     } else {
       return res.status(401).json({ error: "Credenciales incorrectas" });
