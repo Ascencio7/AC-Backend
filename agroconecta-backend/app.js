@@ -116,6 +116,35 @@ app.post('/login', async (req, res) => {
   }
 });
 
+// 📋 LISTAR USUARIOS
+app.get('/usuarios', async (req, res) => {
+
+  try {
+
+    const result = await pool.query(
+      `SELECT 
+          usuario_id,
+          nombre,
+          correo
+       FROM usuarios
+       WHERE estado = true
+       ORDER BY usuario_id`
+    );
+
+    console.log("📊 USUARIOS:", result.rows);
+
+    return res.status(200).json(result.rows);
+
+  } catch (error) {
+
+    console.error("❌ ERROR LISTAR USUARIOS:", error);
+
+    return res.status(500).json({
+      error: "Error al obtener usuarios"
+    });
+  }
+});
+
 
 // 🚀 Puerto
 const PORT = process.env.PORT || 3000;
