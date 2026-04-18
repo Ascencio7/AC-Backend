@@ -236,6 +236,21 @@ app.post('/usuarios', async (req, res) => {
 
   try {
 
+    // Validar correo existente
+    const existe = await pool.query(
+      `SELECT 1
+      FROM usuarios
+      WHERE correo = $1`,
+      [correo]
+    );
+
+    if (existe.rowCount > 0){
+      return res.status(200).json({
+        success: false,
+        message: "El correo ingresado ya está registrado"
+      });
+    }
+
     // 1. Crear usuario
     const userResult = await pool.query(
       `INSERT INTO usuarios (nombre, correo, password_hash, telefono)
