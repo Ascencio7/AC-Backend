@@ -75,11 +75,15 @@ app.post('/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    const dbPassword = user.password_hash ? user.password_hash.trim() : "";
-    const inputPassword = password ? password.trim() : "";
+    const passwordCheck = await pool.query(
+      `SELECT usuario_id
+      FROM usuarios
+      WHERE correo = $1
+      AND password_hash = crypt($2, password_hash)`,
+      [correo, password]
+    );
 
-    if (dbPassword === inputPassword) {
-
+    if (passwordCheck.rows.length > 0){
       return res.status(200).json({
         success: true,
         usuario_id: user.usuario_id,
@@ -88,9 +92,7 @@ app.post('/login', async (req, res) => {
         rol_id: user.rol_id,
         rol: user.rol
       });
-
-    } else {
-
+    }else{
       return res.status(200).json({
         success: false,
         message: "Credenciales incorrectas"
@@ -237,8 +239,8 @@ app.post('/usuarios', async (req, res) => {
     // 1. Crear usuario
     const userResult = await pool.query(
       `INSERT INTO usuarios (nombre, correo, password_hash, telefono)
-       VALUES ($1, $2, $3, $4)
-       RETURNING usuario_id`,
+      VALUES ($1, $2, crypt($3, gen_salt('bf')), $4)
+      RETURNING usuario_id`,
       [nombre, correo, password, telefono || null]
     );
 
