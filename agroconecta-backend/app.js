@@ -245,8 +245,9 @@ app.post('/usuarios', async (req, res) => {
     );
 
     if (existe.rowCount > 0){
-      return res.status(200).json({
+      return res.status(400).json({
         success: false,
+        code: "EMAIL_EXISTS",
         message: "El correo ingresado ya está registrado"
       });
     }
