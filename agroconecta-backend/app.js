@@ -122,7 +122,6 @@ app.get('/usuarios', async (req, res) => {
         telefono,
         estado
       FROM usuarios
-      WHERE estado = true
       ORDER BY usuario_id DESC`
     );
 
@@ -130,11 +129,8 @@ app.get('/usuarios', async (req, res) => {
 
   } catch (error) {
 
-    console.error("❌ ERROR LISTAR:", error);
-
-    return res.status(500).json({
-      error: "Error al obtener usuarios"
-    });
+    console.error("ERROR LISTAR: ", error);
+    return res.status(500).json({error: "Error al obtener los usuarios"});
   }
 });
 
