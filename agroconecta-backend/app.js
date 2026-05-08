@@ -303,6 +303,68 @@ app.get('/roles', async (req, res) => {
   }
 });
 
+// Listar categorías para el selector de Android
+app.get('/categorias', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT categoria_id, nombre FROM categorias ORDER BY nombre ASC');
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR CATEGORIAS:", error);
+    return res.status(500).json({ error: "Error al obtener categorías" });
+  }
+});
+
+// Listar productos activos
+app.get('/productos', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.*, c.nombre as nombre_categoria 
+       FROM productos p 
+       LEFT JOIN categorias c ON p.categoria_id = c.categoria_id 
+       WHERE p.estado = true 
+       ORDER BY p.producto_id ASC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR PRODUCTOS:", error);
+    return res.status(500).json({ error: "Error al obtener productos" });
+  }
+});
+
+// Crear producto
+app.post('/productos', async (req, res) => {
+  const { usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO productos (usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen || null]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE PRODUCT:", error);
+    return res.status(500).json({ error: "Error al crear producto" });
+  }
+});
+
+// Actualizar producto (incluyendo borrado lógico si estado es false)
+app.put('/productos/:id', async (req, res) => {
+  const { id } = req.params;
+  const { categoria_id, nombre, descripcion, precio, existencia, estado, imagen } = req.body;
+  try {
+    await pool.query(
+      `UPDATE productos 
+       SET categoria_id = $1, nombre = $2, descripcion = $3, precio = $4, existencia = $5, estado = $6, imagen = $7
+       WHERE producto_id = $8`,
+      [categoria_id, nombre, descripcion, precio, existencia, estado ?? true, imagen || null, id]
+    );
+    return res.status(200).json({ success: true, message: "Producto actualizado" });
+  } catch (error) {
+    console.error("❌ ERROR UPDATE PRODUCT:", error);
+    return res.status(500).json({ error: "Error al actualizar producto" });
+  }
+});
+
 // Iniciar el servidor
 const PORT = process.env.PORT || 3000;
 
