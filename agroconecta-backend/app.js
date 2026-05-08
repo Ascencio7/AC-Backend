@@ -365,45 +365,7 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
-// RUTA FINAL PARA REPORTES (Copia y pega esto en tu backend)
-app.get('/usuarios', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT 
-          u.usuario_id,
-          u.nombre,
-          u.correo,
-          u.telefono,
-          u.estado,
-          u.fecha_registro,
-          r.rol_id,
-          r.nombre AS nombre_rol
-       FROM usuarios u
-       LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
-       LEFT JOIN roles r ON ur.rol_id = r.rol_id
-       ORDER BY u.usuario_id ASC`
-    );
-    return res.status(200).json(result.rows);
-  } catch (error) {
-    console.error("❌ ERROR BACKEND:", error);
-    return res.status(500).json({ error: "Error en el servidor" });
-  }
-});
 
-app.get('/usuarios', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT u.*, r.rol_id, r.nombre AS nombre_rol 
-       FROM usuarios u 
-       LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id 
-       LEFT JOIN roles r ON ur.rol_id = r.rol_id 
-       ORDER BY u.usuario_id ASC`
-    );
-    return res.status(200).json(result.rows);
-  } catch (error) {
-    return res.status(500).json({ error: "Error" });
-  }
-});
 
 // Iniciar el servidor
 const PORT = process.env.PORT || 3000;
