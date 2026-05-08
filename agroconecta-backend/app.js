@@ -365,6 +365,22 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
+// Obtener un solo producto por ID (Necesario para la edición en Android)
+app.get('/productos/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM productos WHERE producto_id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR GET PRODUCT BY ID:", error);
+    return res.status(500).json({ error: "Error en el servidor" });
+  }
+});
+
+
 
 
 // Iniciar el servidor
