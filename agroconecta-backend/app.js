@@ -365,7 +365,7 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
-// RUTA CORREGIDA PARA REPORTES
+// RUTA CORREGIDA: Listar usuarios con su información de ROL para reportes
 app.get('/usuarios', async (req, res) => {
   try {
     const result = await pool.query(
@@ -375,6 +375,7 @@ app.get('/usuarios', async (req, res) => {
           u.correo,
           u.telefono,
           u.estado,
+          u.fecha_registro,
           r.rol_id,
           r.nombre AS nombre_rol
        FROM usuarios u
@@ -384,8 +385,8 @@ app.get('/usuarios', async (req, res) => {
     );
     return res.status(200).json(result.rows);
   } catch (error) {
-    console.error("❌ ERROR:", error);
-    return res.status(500).json({ error: "Error al obtener usuarios" });
+    console.error("❌ ERROR LISTAR USUARIOS:", error);
+    return res.status(500).json({ error: "Error al obtener los usuarios" });
   }
 });
 
