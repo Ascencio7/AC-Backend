@@ -365,7 +365,7 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
-// RUTA CORREGIDA: Listar usuarios con su información de ROL para reportes
+// RUTA FINAL PARA REPORTES (Copia y pega esto en tu backend)
 app.get('/usuarios', async (req, res) => {
   try {
     const result = await pool.query(
@@ -385,8 +385,23 @@ app.get('/usuarios', async (req, res) => {
     );
     return res.status(200).json(result.rows);
   } catch (error) {
-    console.error("❌ ERROR LISTAR USUARIOS:", error);
-    return res.status(500).json({ error: "Error al obtener los usuarios" });
+    console.error("❌ ERROR BACKEND:", error);
+    return res.status(500).json({ error: "Error en el servidor" });
+  }
+});
+
+app.get('/usuarios', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.*, r.rol_id, r.nombre AS nombre_rol 
+       FROM usuarios u 
+       LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id 
+       LEFT JOIN roles r ON ur.rol_id = r.rol_id 
+       ORDER BY u.usuario_id ASC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    return res.status(500).json({ error: "Error" });
   }
 });
 
