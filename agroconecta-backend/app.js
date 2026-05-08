@@ -365,7 +365,7 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
-// RUTA ACTUALIZADA: Listar usuarios con su información de ROL
+// RUTA CORREGIDA PARA REPORTES
 app.get('/usuarios', async (req, res) => {
   try {
     const result = await pool.query(
@@ -375,20 +375,17 @@ app.get('/usuarios', async (req, res) => {
           u.correo,
           u.telefono,
           u.estado,
-          u.fecha_registro,
-          r.nombre AS nombre_rol,
-          r.rol_id
+          r.rol_id,
+          r.nombre AS nombre_rol
        FROM usuarios u
        LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
        LEFT JOIN roles r ON ur.rol_id = r.rol_id
        ORDER BY u.usuario_id ASC`
     );
-
     return res.status(200).json(result.rows);
-
   } catch (error) {
-    console.error("❌ ERROR LISTAR USUARIOS:", error);
-    return res.status(500).json({ error: "Error al obtener los usuarios" });
+    console.error("❌ ERROR:", error);
+    return res.status(500).json({ error: "Error al obtener usuarios" });
   }
 });
 
