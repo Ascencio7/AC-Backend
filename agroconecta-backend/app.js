@@ -365,7 +365,7 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
-// Listar los usuarios registrados con su información de ROL (Para reportes y gestión)
+// RUTA ACTUALIZADA: Listar usuarios con su información de ROL
 app.get('/usuarios', async (req, res) => {
   try {
     const result = await pool.query(
@@ -375,12 +375,13 @@ app.get('/usuarios', async (req, res) => {
           u.correo,
           u.telefono,
           u.estado,
+          u.fecha_registro,
           r.nombre AS nombre_rol,
           r.rol_id
        FROM usuarios u
        LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
        LEFT JOIN roles r ON ur.rol_id = r.rol_id
-       ORDER BY u.usuario_id DESC`
+       ORDER BY u.usuario_id ASC`
     );
 
     return res.status(200).json(result.rows);
