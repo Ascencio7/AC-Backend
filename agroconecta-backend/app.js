@@ -546,26 +546,27 @@ app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
   const { vendedor_id } = req.params;
   try {
     const result = await pool.query(
-      `SELECT DISTINCT
+      `SELECT
         p.pedido_id,
         p.fecha,
         p.usuario_id as cliente_id,
         u.nombre as nombre_cliente,
         e.nombre as estado,
         e.estado_id,
-        COALESCE(SUM(d.cantidad * d.precio_unitario) OVER (PARTITION BY p.pedido_id), 0) as total,
+        SUM(d.cantidad * d.precio_unitario) as total,
         json_agg(json_build_object(
           'producto_id', d.producto_id,
           'nombre', pr.nombre,
           'cantidad', d.cantidad,
           'precio_unitario', d.precio_unitario
-        )) OVER (PARTITION BY p.pedido_id) as productos
+        )) as detalles
        FROM pedidos p
        JOIN detalles d ON p.pedido_id = d.pedido_id
        JOIN productos pr ON d.producto_id = pr.producto_id
        JOIN usuarios u ON p.usuario_id = u.usuario_id
        LEFT JOIN estados e ON p.estado_id = e.estado_id
        WHERE pr.usuario_id = $1
+       GROUP BY p.pedido_id, p.fecha, p.usuario_id, u.nombre, e.nombre, e.estado_id
        ORDER BY p.fecha DESC`,
       [vendedor_id]
     );
