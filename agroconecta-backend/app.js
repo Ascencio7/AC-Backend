@@ -383,6 +383,163 @@ app.get('/productos/:id', async (req, res) => {
 
 
 
+
+
+// ================================================================
+// PEDIDOS
+// estado_id: 1=pendiente, 2=en proceso, 3=entregado, 4=cancelado
+// ================================================================
+
+// Crear pedido con sus detalles
+app.post('/pedidos', async (req, res) => {
+  const { usuario_id, total, estado_id, detalles } = req.body;
+
+  if (!usuario_id || !detalles || detalles.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Datos incompletos: se requiere usuario_id y al menos un producto"
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Insertar cabecera del pedido
+    const pedidoResult = await client.query(
+      `INSERT INTO pedidos (usuario_id, estado_id)
+       VALUES ($1, $2)
+       RETURNING pedido_id, usuario_id, fecha, estado_id`,
+      [usuario_id, estado_id || 1]
+    );
+
+    const pedido = pedidoResult.rows[0];
+    const pedido_id = pedido.pedido_id;
+
+    // 2. Insertar detalles
+    for (const item of detalles) {
+      await client.query(
+        `INSERT INTO detalles (pedido_id, producto_id, cantidad, precio_unitario)
+         VALUES ($1, $2, $3, $4)`,
+        [pedido_id, item.producto_id, item.cantidad, item.precio]
+      );
+
+      // 3. Restar existencia del producto
+      await client.query(
+        `UPDATE productos SET existencia = existencia - $1
+         WHERE producto_id = $2 AND existencia >= $1`,
+        [item.cantidad, item.producto_id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return res.status(201).json({
+      success: true,
+      pedido_id: pedido_id,
+      usuario_id: pedido.usuario_id,
+      estado_id: pedido.estado_id,
+      fecha: pedido.fecha
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("ERROR CREATE PEDIDO:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error al crear el pedido: " + error.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+// Listar todos los pedidos con estado
+app.get('/pedidos', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.pedido_id, p.usuario_id, p.fecha,
+              e.nombre as estado, e.estado_id,
+              u.nombre as nombre_cliente,
+              COALESCE(SUM(d.cantidad * d.precio_unitario), 0) as total
+       FROM pedidos p
+       LEFT JOIN estados e ON p.estado_id = e.estado_id
+       LEFT JOIN usuarios u ON p.usuario_id = u.usuario_id
+       LEFT JOIN detalles d ON p.pedido_id = d.pedido_id
+       GROUP BY p.pedido_id, e.nombre, e.estado_id, u.nombre
+       ORDER BY p.fecha DESC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("ERROR GET PEDIDOS:", error);
+    return res.status(500).json({ error: "Error al obtener pedidos" });
+  }
+});
+
+// Pedidos de un usuario específico
+app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
+  const { usuario_id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT p.pedido_id, p.fecha,
+              e.nombre as estado, e.estado_id,
+              COALESCE(SUM(d.cantidad * d.precio_unitario), 0) as total,
+              json_agg(json_build_object(
+                'producto_id', d.producto_id,
+                'nombre', pr.nombre,
+                'cantidad', d.cantidad,
+                'precio_unitario', d.precio_unitario
+              )) as detalles
+       FROM pedidos p
+       LEFT JOIN estados e ON p.estado_id = e.estado_id
+       LEFT JOIN detalles d ON p.pedido_id = d.pedido_id
+       LEFT JOIN productos pr ON d.producto_id = pr.producto_id
+       WHERE p.usuario_id = $1
+       GROUP BY p.pedido_id, e.nombre, e.estado_id
+       ORDER BY p.fecha DESC`,
+      [usuario_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("ERROR GET PEDIDOS USUARIO:", error);
+    return res.status(500).json({ error: "Error al obtener pedidos del usuario" });
+  }
+});
+
+// Obtener pedido por ID
+app.get('/pedidos/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT p.*, e.nombre as estado_nombre
+       FROM pedidos p
+       LEFT JOIN estados e ON p.estado_id = e.estado_id
+       WHERE p.pedido_id = $1`, [id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Pedido no encontrado" });
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    return res.status(500).json({ error: "Error al obtener pedido" });
+  }
+});
+
+// Actualizar estado del pedido
+app.put('/pedidos/:id', async (req, res) => {
+  const { id } = req.params;
+  const { estado_id } = req.body;
+  try {
+    await pool.query(
+      `UPDATE pedidos SET estado_id = $1 WHERE pedido_id = $2`,
+      [estado_id, id]
+    );
+    return res.status(200).json({ success: true, message: "Pedido actualizado" });
+  } catch (error) {
+    console.error("ERROR UPDATE PEDIDO:", error);
+    return res.status(500).json({ error: "Error al actualizar pedido" });
+  }
+});
+
 // Iniciar el servidor
 const PORT = process.env.PORT || 3000;
 
