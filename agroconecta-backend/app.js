@@ -111,24 +111,28 @@ app.post('/login', async (req, res) => {
 });
 
 // Listar los usuarios registrados activos
+// Listar los usuarios registrados con su ROL y FECHA (Actualizado para Reportes)
 app.get('/usuarios', async (req, res) => {
-
   try {
     const result = await pool.query(
       `SELECT 
-        usuario_id,
-        nombre,
-        correo,
-        telefono,
-        estado
-      FROM usuarios
-      ORDER BY usuario_id DESC`
+        u.usuario_id,
+        u.nombre,
+        u.correo,
+        u.telefono,
+        u.estado,
+        u.fecha_registro, -- Asegúrate que esta columna exista en tu tabla usuarios
+        r.rol_id,
+        r.nombre AS rol
+      FROM usuarios u
+      LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
+      LEFT JOIN roles r ON ur.rol_id = r.rol_id
+      ORDER BY u.usuario_id DESC`
     );
 
     return res.status(200).json(result.rows);
 
   } catch (error) {
-
     console.error("ERROR LISTAR: ", error);
     return res.status(500).json({error: "Error al obtener los usuarios"});
   }
