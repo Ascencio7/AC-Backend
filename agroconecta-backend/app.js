@@ -581,6 +581,52 @@ app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
   }
 });
 
+
+// CALIFICACIONES
+
+app.post('/calificaciones', async (req, res) => {
+  const { pedido_id, producto_id, puntuacion, comentario } = req.body;
+
+  if (!pedido_id || !producto_id || !puntuacion) {
+    return res.status(400).json({
+      success: false,
+      message: "Datos incompletos para la calificación"
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO calificaciones (pedido_id, producto_id, puntuacion, comentario)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [pedido_id, producto_id, puntuacion, comentario || null]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "¡Gracias por tu calificación!",
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error("❌ ERROR CALIFICAR:", error);
+    
+    if (error.code === '42501') {
+      return res.status(401).json({
+        success: false,
+        message: "Error de permisos en la base de datos (RLS). Verifica las políticas en Supabase."
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Error al guardar la calificación"
+    });
+  }
+});
+
+
+
 // Iniciar el servidor
 const PORT = process.env.PORT || 3000;
 
