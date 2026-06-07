@@ -278,7 +278,10 @@ app.post('/productos', async (req, res) => {
        RETURNING *`,
       [
         usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen || null,
-        telefono_vendedor || null, latitud || null, longitud || null, direccion || null,
+        telefono_vendedor || null,
+        latitud != null && latitud !== undefined ? Number(latitud) : null,
+        longitud != null && longitud !== undefined ? Number(longitud) : null,
+        direccion || null,
         acepta_efectivo ?? false, acepta_transferencia ?? false, acepta_tarjeta ?? false
       ]
     );
@@ -303,8 +306,8 @@ app.put('/productos/:id', async (req, res) => {
        SET categoria_id = $1, nombre = $2, descripcion = $3, precio = $4,
            existencia = $5, estado = $6, imagen = $7,
            telefono_vendedor = COALESCE($8, telefono_vendedor),
-           latitud = COALESCE($9, latitud),
-           longitud = COALESCE($10, longitud),
+           latitud = CASE WHEN $9 IS NOT NULL THEN $9 ELSE latitud END,
+           longitud = CASE WHEN $10 IS NOT NULL THEN $10 ELSE longitud END,
            direccion = COALESCE($11, direccion),
            acepta_efectivo = $12,
            acepta_transferencia = $13,
@@ -312,7 +315,10 @@ app.put('/productos/:id', async (req, res) => {
        WHERE producto_id = $15`,
       [
         categoria_id, nombre, descripcion, precio, existencia, estado ?? true, imagen || null,
-        telefono_vendedor || null, latitud || null, longitud || null, direccion || null,
+        telefono_vendedor || null,
+        latitud != null && latitud !== undefined ? Number(latitud) : null,
+        longitud != null && longitud !== undefined ? Number(longitud) : null,
+        direccion || null,
         acepta_efectivo ?? false, acepta_transferencia ?? false, acepta_tarjeta ?? false,
         id
       ]
