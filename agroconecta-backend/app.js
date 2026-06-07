@@ -6,7 +6,6 @@ const { Pool } = pkg;
 
 const app = express();
 
-// Medios de comunicacion de la API
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -14,50 +13,35 @@ app.use(express.urlencoded({ extended: true }));
 // Conexion a Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
-// Confirmacion de conexion a Supabase
 pool.connect()
-  .then(client => {
-    console.log("✅ Conectado a Supabase");
-    client.release();
-  })
-  .catch(err => {
-    console.error("❌ Error conectando a Supabase:", err);
-  });
+  .then(client => { console.log("✅ Conectado a Supabase"); client.release(); })
+  .catch(err => { console.error("❌ Error conectando a Supabase:", err); });
 
-// Ruta base de la API para pruebas
+// Ruta base
 app.get('/', (req, res) => {
   res.status(200).json({ mensaje: 'API funcionando 🚀' });
 });
 
-// Iniciar Sesion
+// ================================================================
+// AUTENTICACIÓN
+// ================================================================
+
 app.post('/login', async (req, res) => {
-
   console.log("📥 LOGIN BODY:", req.body);
-
   const { correo, password } = req.body;
 
   if (!correo || !password) {
-    return res.status(200).json({
-      success: false,
-      message: "Datos incompletos"
-    });
+    return res.status(200).json({ success: false, message: "Datos incompletos" });
   }
 
   try {
-
     const result = await pool.query(
       `SELECT 
-          u.usuario_id, 
-          u.nombre, 
-          u.correo, 
-          u.password_hash,
-          r.rol_id,
-          r.nombre AS rol
+          u.usuario_id, u.nombre, u.correo, u.telefono, u.foto_perfil,
+          u.password_hash, r.rol_id, r.nombre AS rol
        FROM usuarios u
        LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
        LEFT JOIN roles r ON ur.rol_id = r.rol_id
@@ -67,247 +51,178 @@ app.post('/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(200).json({
-        success: false,
-        message: "Usuario no existe"
-      });
+      return res.status(200).json({ success: false, message: "Usuario no existe" });
     }
 
     const user = result.rows[0];
 
     const passwordCheck = await pool.query(
-      `SELECT usuario_id
-      FROM usuarios
-      WHERE correo = $1
-      AND password_hash = crypt($2, password_hash)`,
+      `SELECT usuario_id FROM usuarios
+       WHERE correo = $1 AND password_hash = crypt($2, password_hash)`,
       [correo, password]
     );
 
-    if (passwordCheck.rows.length > 0){
+    if (passwordCheck.rows.length > 0) {
       return res.status(200).json({
         success: true,
         usuario_id: user.usuario_id,
         nombre: user.nombre,
         correo: user.correo,
+        telefono: user.telefono || null,
+        foto_perfil: user.foto_perfil || null,
         rol_id: user.rol_id,
         rol: user.rol
       });
-    }else{
-      return res.status(200).json({
-        success: false,
-        message: "Credenciales incorrectas"
-      });
+    } else {
+      return res.status(200).json({ success: false, message: "Credenciales incorrectas" });
     }
 
   } catch (error) {
-
     console.error("❌ LOGIN ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Error en el servidor"
-    });
+    return res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 });
 
-// Listar los usuarios registrados activos
-// Listar los usuarios registrados con su ROL y FECHA (Actualizado para Reportes)
+// ================================================================
+// USUARIOS
+// ================================================================
+
+// Listar usuarios (incluye foto_perfil)
 app.get('/usuarios', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
-        u.usuario_id,
-        u.nombre,
-        u.correo,
-        u.telefono,
-        u.estado,
-        u.fecha_registro, -- Asegúrate que esta columna exista en tu tabla usuarios
-        r.rol_id,
-        r.nombre AS rol
+        u.usuario_id, u.nombre, u.correo, u.telefono, u.estado,
+        u.fecha_registro, u.foto_perfil,
+        r.rol_id, r.nombre AS rol
       FROM usuarios u
       LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
       LEFT JOIN roles r ON ur.rol_id = r.rol_id
       ORDER BY u.usuario_id DESC`
     );
-
     return res.status(200).json(result.rows);
-
   } catch (error) {
-    console.error("ERROR LISTAR: ", error);
-    return res.status(500).json({error: "Error al obtener los usuarios"});
+    console.error("ERROR LISTAR:", error);
+    return res.status(500).json({ error: "Error al obtener los usuarios" });
   }
 });
 
-// Actualizar los datos del usuario
+// Actualizar usuario (incluye foto_perfil y contraseña opcional)
 app.put('/usuarios/:id', async (req, res) => {
-
   const { id } = req.params;
-  const { nombre, correo, telefono, estado } = req.body;
+  const { nombre, correo, telefono, estado, password, foto_perfil } = req.body;
 
   if (!nombre || !correo) {
-    return res.status(400).json({
-      success: false,
-      message: "Datos incompletos"
-    });
+    return res.status(400).json({ success: false, message: "Datos incompletos" });
   }
 
   try {
-    await pool.query(
-      `UPDATE usuarios
-       SET nombre = $1,
-           correo = $2,
-           telefono = $3,
-           estado = $4
-       WHERE usuario_id = $5`,
-      [
-        nombre,
-        correo,
-        telefono || null,
-        estado ?? true,
-        id
-      ]
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Usuario actualizado"
-    });
-
-  } catch (error) {
-
-    console.error("❌ ERROR UPDATE:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Error al actualizar usuario"
-    });
-  }
-});
-
-// Eliminar logicamente el usuario, pasando su estado a false
-app.delete('/usuarios/:id', async (req, res) => {
-
-  const { id } = req.params;
-
-  try {
-
-    const result = await pool.query(
-      `UPDATE usuarios
-       SET estado = false
-       WHERE usuario_id = $1
-       RETURNING usuario_id`,
-      [id]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Usuario no encontrado"
-      });
+    if (password && password.trim() !== '') {
+      // Actualizar con nueva contraseña
+      await pool.query(
+        `UPDATE usuarios
+         SET nombre = $1, correo = $2, telefono = $3, estado = $4,
+             password_hash = crypt($5, gen_salt('bf')),
+             foto_perfil = COALESCE($6, foto_perfil)
+         WHERE usuario_id = $7`,
+        [nombre, correo, telefono || null, estado ?? true, password, foto_perfil || null, id]
+      );
+    } else {
+      // Sin cambio de contraseña
+      await pool.query(
+        `UPDATE usuarios
+         SET nombre = $1, correo = $2, telefono = $3, estado = $4,
+             foto_perfil = COALESCE($5, foto_perfil)
+         WHERE usuario_id = $6`,
+        [nombre, correo, telefono || null, estado ?? true, foto_perfil || null, id]
+      );
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Usuario eliminado"
-    });
+    return res.status(200).json({ success: true, message: "Usuario actualizado" });
 
   } catch (error) {
-
-    console.error("❌ ERROR DELETE:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Error al eliminar usuario"
-    });
+    console.error("❌ ERROR UPDATE:", error);
+    return res.status(500).json({ success: false, message: "Error al actualizar usuario" });
   }
 });
 
-// Agrear un nuevo usuario
-app.post('/usuarios', async (req, res) => {
+// Eliminar usuario (lógico)
+app.delete('/usuarios/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `UPDATE usuarios SET estado = false WHERE usuario_id = $1 RETURNING usuario_id`,
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: "Usuario no encontrado" });
+    }
+    return res.status(200).json({ success: true, message: "Usuario eliminado" });
+  } catch (error) {
+    console.error("❌ ERROR DELETE:", error);
+    return res.status(500).json({ success: false, message: "Error al eliminar usuario" });
+  }
+});
 
+// Crear usuario
+app.post('/usuarios', async (req, res) => {
   const { nombre, correo, password, telefono, rol_id } = req.body;
 
   if (!nombre || !correo || !password || !rol_id) {
-    return res.status(400).json({
-      success: false,
-      message: "Datos incompletos"
-    });
+    return res.status(400).json({ success: false, message: "Datos incompletos" });
   }
 
   try {
-
-    // Validar correo existente
     const existe = await pool.query(
-      `SELECT 1
-      FROM usuarios
-      WHERE correo = $1`,
-      [correo]
+      `SELECT 1 FROM usuarios WHERE correo = $1`, [correo]
     );
-
-    if (existe.rowCount > 0){
+    if (existe.rowCount > 0) {
       return res.status(400).json({
-        success: false,
-        code: "EMAIL_EXISTS",
+        success: false, code: "EMAIL_EXISTS",
         message: "El correo ingresado ya está registrado"
       });
     }
 
-    // 1. Crear usuario
     const userResult = await pool.query(
       `INSERT INTO usuarios (nombre, correo, password_hash, telefono)
-      VALUES ($1, $2, crypt($3, gen_salt('bf')), $4)
-      RETURNING usuario_id`,
+       VALUES ($1, $2, crypt($3, gen_salt('bf')), $4)
+       RETURNING usuario_id`,
       [nombre, correo, password, telefono || null]
     );
 
     const usuario_id = userResult.rows[0].usuario_id;
 
-    // 2. Asignar rol
     await pool.query(
-      `INSERT INTO usuarios_roles (usuario_id, rol_id)
-       VALUES ($1, $2)`,
+      `INSERT INTO usuarios_roles (usuario_id, rol_id) VALUES ($1, $2)`,
       [usuario_id, rol_id]
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Usuario creado correctamente"
-    });
+    return res.status(200).json({ success: true, message: "Usuario creado correctamente" });
 
   } catch (error) {
-
     console.error("❌ ERROR CREATE USER:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Error al crear usuario"
-    });
+    return res.status(500).json({ success: false, message: "Error al crear usuario" });
   }
 });
 
-// Listar los roles para que aparezcan en el select de Android
+// ================================================================
+// ROLES
+// ================================================================
+
 app.get('/roles', async (req, res) => {
-
   try {
-
-    const result = await pool.query(
-      `SELECT rol_id, nombre FROM roles ORDER BY rol_id`
-    );
-
+    const result = await pool.query(`SELECT rol_id, nombre FROM roles ORDER BY rol_id`);
     return res.status(200).json(result.rows);
-
   } catch (error) {
-
     console.error("❌ ERROR ROLES:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Error al obtener roles"
-    });
+    return res.status(500).json({ success: false, message: "Error al obtener roles" });
   }
 });
 
-// Listar categorías para el selector de Android
+// ================================================================
+// CATEGORÍAS
+// ================================================================
+
 app.get('/categorias', async (req, res) => {
   try {
     const result = await pool.query('SELECT categoria_id, nombre FROM categorias ORDER BY nombre ASC');
@@ -318,14 +233,24 @@ app.get('/categorias', async (req, res) => {
   }
 });
 
-// Listar productos activos
+// ================================================================
+// PRODUCTOS
+// ================================================================
+
+// Listar productos activos (incluye foto_perfil del vendedor)
 app.get('/productos', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT p.*, c.nombre as nombre_categoria 
-       FROM productos p 
-       LEFT JOIN categorias c ON p.categoria_id = c.categoria_id 
-       WHERE p.estado = true 
+      `SELECT 
+        p.*,
+        c.nombre AS nombre_categoria,
+        u.nombre AS nombre_vendedor,
+        u.telefono AS telefono_vendedor,
+        u.foto_perfil AS foto_perfil_vendedor
+       FROM productos p
+       LEFT JOIN categorias c ON p.categoria_id = c.categoria_id
+       LEFT JOIN usuarios u ON p.usuario_id = u.usuario_id
+       WHERE p.estado = true
        ORDER BY p.producto_id ASC`
     );
     return res.status(200).json(result.rows);
@@ -351,14 +276,15 @@ app.post('/productos', async (req, res) => {
   }
 });
 
-// Actualizar producto (incluyendo borrado lógico si estado es false)
+// Actualizar producto
 app.put('/productos/:id', async (req, res) => {
   const { id } = req.params;
   const { categoria_id, nombre, descripcion, precio, existencia, estado, imagen } = req.body;
   try {
     await pool.query(
       `UPDATE productos 
-       SET categoria_id = $1, nombre = $2, descripcion = $3, precio = $4, existencia = $5, estado = $6, imagen = $7
+       SET categoria_id = $1, nombre = $2, descripcion = $3, precio = $4,
+           existencia = $5, estado = $6, imagen = $7
        WHERE producto_id = $8`,
       [categoria_id, nombre, descripcion, precio, existencia, estado ?? true, imagen || null, id]
     );
@@ -369,7 +295,7 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
-// Obtener un solo producto por ID (Necesario para la edición en Android)
+// Obtener producto por ID
 app.get('/productos/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -384,17 +310,11 @@ app.get('/productos/:id', async (req, res) => {
   }
 });
 
-
-
-
-
-
 // ================================================================
 // PEDIDOS
 // estado_id: 1=pendiente, 2=en proceso, 3=entregado, 4=cancelado
 // ================================================================
 
-// Crear pedido con sus detalles
 app.post('/pedidos', async (req, res) => {
   const { usuario_id, total, estado_id, detalles } = req.body;
 
@@ -409,7 +329,6 @@ app.post('/pedidos', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Insertar cabecera del pedido
     const pedidoResult = await client.query(
       `INSERT INTO pedidos (usuario_id, estado_id)
        VALUES ($1, $2)
@@ -420,15 +339,12 @@ app.post('/pedidos', async (req, res) => {
     const pedido = pedidoResult.rows[0];
     const pedido_id = pedido.pedido_id;
 
-    // 2. Insertar detalles
     for (const item of detalles) {
       await client.query(
         `INSERT INTO detalles (pedido_id, producto_id, cantidad, precio_unitario)
          VALUES ($1, $2, $3, $4)`,
         [pedido_id, item.producto_id, item.cantidad, item.precio]
       );
-
-      // 3. Restar existencia del producto
       await client.query(
         `UPDATE productos SET existencia = existencia - $1
          WHERE producto_id = $2 AND existencia >= $1`,
@@ -449,16 +365,12 @@ app.post('/pedidos', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error("ERROR CREATE PEDIDO:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error al crear el pedido: " + error.message
-    });
+    return res.status(500).json({ success: false, message: "Error al crear el pedido: " + error.message });
   } finally {
     client.release();
   }
 });
 
-// Listar todos los pedidos con estado
 app.get('/pedidos', async (req, res) => {
   try {
     const result = await pool.query(
@@ -480,7 +392,6 @@ app.get('/pedidos', async (req, res) => {
   }
 });
 
-// Pedidos de un usuario específico
 app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
   const { usuario_id } = req.params;
   try {
@@ -510,7 +421,6 @@ app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
   }
 });
 
-// Obtener pedido por ID
 app.get('/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -528,7 +438,6 @@ app.get('/pedidos/:id', async (req, res) => {
   }
 });
 
-// Actualizar estado del pedido
 app.put('/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   const { estado_id } = req.body;
@@ -544,19 +453,15 @@ app.put('/pedidos/:id', async (req, res) => {
   }
 });
 
-
-// Pedidos recibidos por un vendedor (via productos)
 app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
   const { vendedor_id } = req.params;
   try {
     const result = await pool.query(
       `SELECT
-        p.pedido_id,
-        p.fecha,
+        p.pedido_id, p.fecha,
         p.usuario_id as cliente_id,
         u.nombre as nombre_cliente,
-        e.nombre as estado,
-        e.estado_id,
+        e.nombre as estado, e.estado_id,
         SUM(d.cantidad * d.precio_unitario) as total,
         json_agg(json_build_object(
           'producto_id', d.producto_id,
@@ -581,63 +486,52 @@ app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
   }
 });
 
-
+// ================================================================
 // CALIFICACIONES
+// ================================================================
 
 app.post('/calificaciones', async (req, res) => {
   const { pedido_id, producto_id, puntuacion, comentario } = req.body;
 
   if (!pedido_id || !producto_id || !puntuacion) {
-    return res.status(400).json({
-      success: false,
-      message: "Datos incompletos para la calificación"
-    });
+    return res.status(400).json({ success: false, message: "Datos incompletos para la calificación" });
   }
 
   try {
     const result = await pool.query(
       `INSERT INTO calificaciones (pedido_id, producto_id, puntuacion, comentario)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
+       VALUES ($1, $2, $3, $4) RETURNING *`,
       [pedido_id, producto_id, puntuacion, comentario || null]
     );
-
     return res.status(201).json({
       success: true,
       message: "¡Gracias por tu calificación!",
       data: result.rows[0]
     });
-
   } catch (error) {
     console.error("❌ ERROR CALIFICAR:", error);
-    
     if (error.code === '42501') {
       return res.status(401).json({
         success: false,
         message: "Error de permisos en la base de datos (RLS). Verifica las políticas en Supabase."
       });
     }
-
-    return res.status(500).json({
-      success: false,
-      message: "Error al guardar la calificación"
-    });
+    return res.status(500).json({ success: false, message: "Error al guardar la calificación" });
   }
 });
 
-// Actualizar contraseña directamente desde la App
+// ================================================================
+// CONTRASEÑA
+// ================================================================
+
 app.post('/update-password', async (req, res) => {
   const { correo, nuevaPassword } = req.body;
 
   if (!correo || !nuevaPassword) {
-    return res.status(200).json({
-      success: false,
-      message: "Datos incompletos"
-    });
+    return res.status(200).json({ success: false, message: "Datos incompletos" });
   }
 
   try {
-    // 1. Verificar si el usuario existe y está activo
     const userCheck = await pool.query(
       "SELECT usuario_id FROM usuarios WHERE correo = $1 AND estado = true",
       [correo]
@@ -650,33 +544,19 @@ app.post('/update-password', async (req, res) => {
       });
     }
 
-    // 2. Actualizar la contraseña usando crypt y gen_salt
     await pool.query(
-      `UPDATE usuarios 
-       SET password_hash = crypt($1, gen_salt('bf')) 
-       WHERE correo = $2`,
+      `UPDATE usuarios SET password_hash = crypt($1, gen_salt('bf')) WHERE correo = $2`,
       [nuevaPassword, correo]
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Contraseña actualizada exitosamente"
-    });
+    return res.status(200).json({ success: true, message: "Contraseña actualizada exitosamente" });
 
   } catch (error) {
     console.error("❌ UPDATE PASSWORD ERROR:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error en el servidor"
-    });
+    return res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 });
 
-
-
-// Iniciar el servidor
+// ================================================================
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("🚀 Servidor corriendo en puerto", PORT);
-});
+app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
