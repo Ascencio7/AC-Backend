@@ -518,6 +518,8 @@ app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
         p.pedido_id, p.fecha,
         p.usuario_id as cliente_id,
         u.nombre as nombre_cliente,
+        u.telefono as telefono_cliente,
+        u.foto_perfil as foto_perfil_cliente,
         e.nombre as estado, e.estado_id,
         SUM(d.cantidad * d.precio_unitario) as total,
         json_agg(json_build_object(
@@ -532,7 +534,7 @@ app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
        JOIN usuarios u ON p.usuario_id = u.usuario_id
        LEFT JOIN estados e ON p.estado_id = e.estado_id
        WHERE pr.usuario_id = $1
-       GROUP BY p.pedido_id, p.fecha, p.usuario_id, u.nombre, e.nombre, e.estado_id
+       GROUP BY p.pedido_id, p.fecha, p.usuario_id, u.nombre, u.telefono, u.foto_perfil, e.nombre, e.estado_id
        ORDER BY p.fecha DESC`,
       [vendedor_id]
     );
