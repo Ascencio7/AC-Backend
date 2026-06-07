@@ -262,12 +262,25 @@ app.get('/productos', async (req, res) => {
 
 // Crear producto
 app.post('/productos', async (req, res) => {
-  const { usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen } = req.body;
+  const {
+    usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen,
+    telefono_vendedor, latitud, longitud, direccion,
+    acepta_efectivo, acepta_transferencia, acepta_tarjeta
+  } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO productos (usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen || null]
+      `INSERT INTO productos (
+         usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen,
+         telefono_vendedor, latitud, longitud, direccion,
+         acepta_efectivo, acepta_transferencia, acepta_tarjeta
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       RETURNING *`,
+      [
+        usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen || null,
+        telefono_vendedor || null, latitud || null, longitud || null, direccion || null,
+        acepta_efectivo ?? false, acepta_transferencia ?? false, acepta_tarjeta ?? false
+      ]
     );
     return res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -279,14 +292,30 @@ app.post('/productos', async (req, res) => {
 // Actualizar producto
 app.put('/productos/:id', async (req, res) => {
   const { id } = req.params;
-  const { categoria_id, nombre, descripcion, precio, existencia, estado, imagen } = req.body;
+  const {
+    categoria_id, nombre, descripcion, precio, existencia, estado, imagen,
+    telefono_vendedor, latitud, longitud, direccion,
+    acepta_efectivo, acepta_transferencia, acepta_tarjeta
+  } = req.body;
   try {
     await pool.query(
       `UPDATE productos 
        SET categoria_id = $1, nombre = $2, descripcion = $3, precio = $4,
-           existencia = $5, estado = $6, imagen = $7
-       WHERE producto_id = $8`,
-      [categoria_id, nombre, descripcion, precio, existencia, estado ?? true, imagen || null, id]
+           existencia = $5, estado = $6, imagen = $7,
+           telefono_vendedor = COALESCE($8, telefono_vendedor),
+           latitud = COALESCE($9, latitud),
+           longitud = COALESCE($10, longitud),
+           direccion = COALESCE($11, direccion),
+           acepta_efectivo = $12,
+           acepta_transferencia = $13,
+           acepta_tarjeta = $14
+       WHERE producto_id = $15`,
+      [
+        categoria_id, nombre, descripcion, precio, existencia, estado ?? true, imagen || null,
+        telefono_vendedor || null, latitud || null, longitud || null, direccion || null,
+        acepta_efectivo ?? false, acepta_transferencia ?? false, acepta_tarjeta ?? false,
+        id
+      ]
     );
     return res.status(200).json({ success: true, message: "Producto actualizado" });
   } catch (error) {
