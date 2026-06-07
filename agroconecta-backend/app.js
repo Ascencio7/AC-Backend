@@ -267,6 +267,7 @@ app.post('/productos', async (req, res) => {
     telefono_vendedor, latitud, longitud, direccion,
     acepta_efectivo, acepta_transferencia, acepta_tarjeta
   } = req.body;
+  console.log("📦 Crear producto body:", JSON.stringify({ nombre, latitud, longitud, telefono_vendedor, direccion }));
   try {
     const result = await pool.query(
       `INSERT INTO productos (
@@ -300,6 +301,7 @@ app.put('/productos/:id', async (req, res) => {
     telefono_vendedor, latitud, longitud, direccion,
     acepta_efectivo, acepta_transferencia, acepta_tarjeta
   } = req.body;
+  console.log("✏️ Actualizar producto id:", id, "body:", JSON.stringify({ nombre, latitud, longitud, telefono_vendedor, direccion }));
   try {
     await pool.query(
       `UPDATE productos 
@@ -349,6 +351,7 @@ app.get('/productos/:id', async (req, res) => {
 // Eliminar producto (borrado lógico - cambia estado a false)
 app.delete('/productos/:id', async (req, res) => {
   const { id } = req.params;
+  console.log("🗑️ Eliminar producto id:", id);
   try {
     const result = await pool.query(
       `UPDATE productos SET estado = false WHERE producto_id = $1 RETURNING producto_id`,
