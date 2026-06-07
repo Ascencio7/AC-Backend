@@ -339,6 +339,25 @@ app.get('/productos/:id', async (req, res) => {
   }
 });
 
+
+// Eliminar producto (borrado lógico - cambia estado a false)
+app.delete('/productos/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `UPDATE productos SET estado = false WHERE producto_id = $1 RETURNING producto_id`,
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: "Producto no encontrado" });
+    }
+    return res.status(200).json({ success: true, message: "Producto eliminado" });
+  } catch (error) {
+    console.error("❌ ERROR DELETE PRODUCT:", error);
+    return res.status(500).json({ success: false, message: "Error al eliminar producto" });
+  }
+});
+
 // ================================================================
 // PEDIDOS
 // estado_id: 1=pendiente, 2=en proceso, 3=entregado, 4=cancelado
