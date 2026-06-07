@@ -625,6 +625,67 @@ app.post('/calificaciones', async (req, res) => {
   }
 });
 
+// Endpoint para Restablecer Contraseña
+app.post('/reset-password', async (req, res) => {
+  const { correo } = req.body;
+
+  // 1. Validar que el correo fue enviado
+  if (!correo) {
+    return res.status(200).json({
+      success: false,
+      message: "Por favor, ingresa tu correo electrónico"
+    });
+  }
+
+  try {
+    // 2. Verificar si el usuario existe y está activo
+    const result = await pool.query(
+      "SELECT usuario_id, nombre FROM usuarios WHERE correo = $1 AND estado = true",
+      [correo]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({
+        success: false,
+        message: "No se encontró una cuenta activa con este correo"
+      });
+    }
+
+    const user = result.rows[0];
+
+    // 3. Generar contraseña temporal
+    const nuevaContra = "Agro" + Math.floor(1000 + Math.random() * 9000);
+
+    // 4. Actualizar la base de datos usando crypt y gen_salt como en tus scripts SQL
+    await pool.query(
+      `UPDATE usuarios 
+       SET password_hash = crypt($1, gen_salt('bf')) 
+       WHERE correo = $2`,
+      [nuevaContra, correo]
+    );
+
+    // 5. Mostrar en consola para pruebas (ya que no hay envío de email real aún)
+    console.log("-----------------------------------------");
+    console.log(`📧 RECUPERACIÓN PARA: ${correo}`);
+    console.log(`👤 USUARIO: ${user.nombre}`);
+    console.log(`🔑 NUEVA CONTRASEÑA: ${nuevaContra}`);
+    console.log("-----------------------------------------");
+
+    // 6. Respuesta para la App Android
+    return res.status(200).json({
+      success: true,
+      message: "Se ha generado una nueva contraseña temporal. Revise su correo (consola del servidor)."
+    });
+
+  } catch (error) {
+    console.error("❌ ERROR AL RESTABLECER:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error interno del servidor"
+    });
+  }
+});
+
 
 
 // Iniciar el servidor
