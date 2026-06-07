@@ -456,6 +456,9 @@ app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
       `SELECT p.pedido_id, p.fecha,
               e.nombre as estado, e.estado_id,
               COALESCE(SUM(d.cantidad * d.precio_unitario), 0) as total,
+              uv.nombre as nombre_vendedor,
+              uv.telefono as telefono_vendedor,
+              uv.foto_perfil as foto_perfil_vendedor,
               json_agg(json_build_object(
                 'producto_id', d.producto_id,
                 'nombre', pr.nombre,
@@ -466,8 +469,9 @@ app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
        LEFT JOIN estados e ON p.estado_id = e.estado_id
        LEFT JOIN detalles d ON p.pedido_id = d.pedido_id
        LEFT JOIN productos pr ON d.producto_id = pr.producto_id
+       LEFT JOIN usuarios uv ON pr.usuario_id = uv.usuario_id
        WHERE p.usuario_id = $1
-       GROUP BY p.pedido_id, e.nombre, e.estado_id
+       GROUP BY p.pedido_id, e.nombre, e.estado_id, uv.nombre, uv.telefono, uv.foto_perfil
        ORDER BY p.fecha DESC`,
       [usuario_id]
     );
