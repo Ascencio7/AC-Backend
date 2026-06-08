@@ -453,25 +453,36 @@ app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
   const { usuario_id } = req.params;
   try {
     const result = await pool.query(
-      `SELECT p.pedido_id, p.fecha,
+      `SELECT 
+              p.pedido_id, p.fecha,
               e.nombre as estado, e.estado_id,
-              COALESCE(SUM(d.cantidad * d.precio_unitario), 0) as total,
-              MIN(uv.nombre) as nombre_vendedor,
-              MIN(uv.telefono) as telefono_vendedor,
-              MIN(uv.foto_perfil) as foto_perfil_vendedor,
-              json_agg(json_build_object(
-                'producto_id', d.producto_id,
-                'nombre', pr.nombre,
-                'cantidad', d.cantidad,
-                'precio_unitario', d.precio_unitario
-              )) as detalles
+              COALESCE(
+                (SELECT SUM(d2.cantidad * d2.precio_unitario) 
+                 FROM detalles d2 WHERE d2.pedido_id = p.pedido_id), 0
+              ) as total,
+              (SELECT u2.nombre FROM detalles d2 
+               JOIN productos pr2 ON d2.producto_id = pr2.producto_id
+               JOIN usuarios u2 ON pr2.usuario_id = u2.usuario_id
+               WHERE d2.pedido_id = p.pedido_id LIMIT 1) as nombre_vendedor,
+              (SELECT u2.telefono FROM detalles d2 
+               JOIN productos pr2 ON d2.producto_id = pr2.producto_id
+               JOIN usuarios u2 ON pr2.usuario_id = u2.usuario_id
+               WHERE d2.pedido_id = p.pedido_id LIMIT 1) as telefono_vendedor,
+              (SELECT u2.foto_perfil FROM detalles d2 
+               JOIN productos pr2 ON d2.producto_id = pr2.producto_id
+               JOIN usuarios u2 ON pr2.usuario_id = u2.usuario_id
+               WHERE d2.pedido_id = p.pedido_id LIMIT 1) as foto_perfil_vendedor,
+              (SELECT json_agg(json_build_object(
+                'producto_id', d2.producto_id,
+                'nombre', pr2.nombre,
+                'cantidad', d2.cantidad,
+                'precio_unitario', d2.precio_unitario
+              )) FROM detalles d2
+               JOIN productos pr2 ON d2.producto_id = pr2.producto_id
+               WHERE d2.pedido_id = p.pedido_id) as detalles
        FROM pedidos p
        LEFT JOIN estados e ON p.estado_id = e.estado_id
-       LEFT JOIN detalles d ON p.pedido_id = d.pedido_id
-       LEFT JOIN productos pr ON d.producto_id = pr.producto_id
-       LEFT JOIN usuarios uv ON pr.usuario_id = uv.usuario_id
        WHERE p.usuario_id = $1
-       GROUP BY p.pedido_id, e.nombre, e.estado_id
        ORDER BY p.fecha DESC`,
       [usuario_id]
     );
