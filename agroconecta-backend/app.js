@@ -237,7 +237,7 @@ app.get('/categorias', async (req, res) => {
 // PRODUCTOS
 // ================================================================
 
-// Listar productos activos (incluye foto_perfil del vendedor)
+// Listar productos (El filtrado se manejará en la app según el rol)
 app.get('/productos', async (req, res) => {
   try {
     const result = await pool.query(
@@ -250,9 +250,9 @@ app.get('/productos', async (req, res) => {
        FROM productos p
        LEFT JOIN categorias c ON p.categoria_id = c.categoria_id
        LEFT JOIN usuarios u ON p.usuario_id = u.usuario_id
-       WHERE p.estado = true
        ORDER BY p.producto_id ASC`
     );
+    // Nota: Eliminamos el "WHERE p.estado = true" para enviar la lista completa a la App
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error("❌ ERROR PRODUCTOS:", error);
