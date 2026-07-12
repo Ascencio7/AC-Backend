@@ -25,10 +25,12 @@ app.get('/', (req, res) => {
   res.status(200).json({ mensaje: 'API funcionando 🚀' });
 });
 
-// ================================================================
-// AUTENTICACIÓN
-// ================================================================
 
+
+// EndpointS DE AgroConecta
+
+
+// AUTENTICACIÓN
 app.post('/login', async (req, res) => {
   console.log("📥 LOGIN BODY:", req.body);
   const { correo, password } = req.body;
@@ -83,9 +85,8 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// ================================================================
+
 // USUARIOS
-// ================================================================
 
 // Listar usuarios (incluye foto_perfil)
 app.get('/usuarios', async (req, res) => {
@@ -106,6 +107,7 @@ app.get('/usuarios', async (req, res) => {
     return res.status(500).json({ error: "Error al obtener los usuarios" });
   }
 });
+
 
 // Actualizar usuario (incluye foto_perfil y contraseña opcional)
 app.put('/usuarios/:id', async (req, res) => {
@@ -146,6 +148,7 @@ app.put('/usuarios/:id', async (req, res) => {
   }
 });
 
+
 // Eliminar usuario (lógico)
 app.delete('/usuarios/:id', async (req, res) => {
   const { id } = req.params;
@@ -164,17 +167,17 @@ app.delete('/usuarios/:id', async (req, res) => {
   }
 });
 
-// Crear usuario
+
 // Crear usuario
 app.post('/usuarios', async (req, res) => {
   const { nombre, correo, password, telefono, rol_id } = req.body;
 
-  // 1. Validar datos incompletos
+  // Validar datos incompletos
   if (!nombre || !correo || !password || !rol_id) {
     return res.status(400).json({ success: false, message: "Datos incompletos" });
   }
 
-  // 2. VALIDACIÓN: Dominio exclusivo para Admin
+  // VALIDACIÓN: Dominio exclusivo para Admin
   // Bloquea cualquier intento de registro con el dominio @agroconectasv.com
   if (correo.toLowerCase().endsWith('@agroconectasv.com')) {
     return res.status(400).json({
@@ -184,7 +187,7 @@ app.post('/usuarios', async (req, res) => {
   }
 
   try {
-    // 3. Verificar si el correo ya existe
+    // Verificar si el correo ya existe
     const existe = await pool.query(
       `SELECT 1 FROM usuarios WHERE correo = $1`, [correo]
     );
@@ -195,7 +198,7 @@ app.post('/usuarios', async (req, res) => {
       });
     }
 
-    // 4. Insertar en la tabla usuarios
+    // Insertar en la tabla usuarios
     const userResult = await pool.query(
       `INSERT INTO usuarios (nombre, correo, password_hash, telefono)
        VALUES ($1, $2, crypt($3, gen_salt('bf')), $4)
@@ -205,7 +208,7 @@ app.post('/usuarios', async (req, res) => {
 
     const usuario_id = userResult.rows[0].usuario_id;
 
-    // 5. Asignar el rol
+    // Asignar el rol
     await pool.query(
       `INSERT INTO usuarios_roles (usuario_id, rol_id) VALUES ($1, $2)`,
       [usuario_id, rol_id]
@@ -219,9 +222,9 @@ app.post('/usuarios', async (req, res) => {
   }
 });
 
-// ================================================================
+
+
 // ROLES
-// ================================================================
 
 app.get('/roles', async (req, res) => {
   try {
@@ -233,9 +236,9 @@ app.get('/roles', async (req, res) => {
   }
 });
 
-// ================================================================
+
+
 // CATEGORÍAS
-// ================================================================
 
 app.get('/categorias', async (req, res) => {
   try {
@@ -247,9 +250,9 @@ app.get('/categorias', async (req, res) => {
   }
 });
 
-// ================================================================
+
+
 // PRODUCTOS
-// ================================================================
 
 // Listar productos (El filtrado se manejará en la app según el rol)
 app.get('/productos', async (req, res) => {
@@ -266,13 +269,14 @@ app.get('/productos', async (req, res) => {
        LEFT JOIN usuarios u ON p.usuario_id = u.usuario_id
        ORDER BY p.producto_id ASC`
     );
-    // Nota: Eliminamos el "WHERE p.estado = true" para enviar la lista completa a la App
+    // Eliminamos el "WHERE p.estado = true" para enviar la lista completa a la App
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error("❌ ERROR PRODUCTOS:", error);
     return res.status(500).json({ error: "Error al obtener productos" });
   }
 });
+
 
 // Crear producto
 app.post('/productos', async (req, res) => {
@@ -306,6 +310,7 @@ app.post('/productos', async (req, res) => {
     return res.status(500).json({ error: "Error al crear producto" });
   }
 });
+
 
 // Actualizar producto
 app.put('/productos/:id', async (req, res) => {
@@ -346,6 +351,7 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
+
 // Obtener producto por ID
 app.get('/productos/:id', async (req, res) => {
   const { id } = req.params;
@@ -381,10 +387,10 @@ app.delete('/productos/:id', async (req, res) => {
   }
 });
 
-// ================================================================
+
+
 // PEDIDOS
 // estado_id: 1=pendiente, 2=en proceso, 3=entregado, 4=cancelado
-// ================================================================
 
 app.post('/pedidos', async (req, res) => {
   const { usuario_id, total, estado_id, detalles } = req.body;
@@ -442,6 +448,8 @@ app.post('/pedidos', async (req, res) => {
   }
 });
 
+
+// Obtener todos los pedidos
 app.get('/pedidos', async (req, res) => {
   try {
     const result = await pool.query(
@@ -463,6 +471,8 @@ app.get('/pedidos', async (req, res) => {
   }
 });
 
+
+// Obtener todos los pedidos de un usuario
 app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
   const { usuario_id } = req.params;
   try {
@@ -505,6 +515,8 @@ app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
   }
 });
 
+
+// Obtener pedido por ID
 app.get('/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -522,6 +534,8 @@ app.get('/pedidos/:id', async (req, res) => {
   }
 });
 
+
+// Actualizar pedido por ID
 app.put('/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   const { estado_id } = req.body;
@@ -537,6 +551,8 @@ app.put('/pedidos/:id', async (req, res) => {
   }
 });
 
+
+// Obtener todos los pedidos de un vendedor (incluye detalles) por ID
 app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
   const { vendedor_id } = req.params;
   try {
@@ -572,10 +588,11 @@ app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
   }
 });
 
-// ================================================================
-// CALIFICACIONES
-// ================================================================
 
+
+// CALIFICACIONES
+
+// Calificar un producto de un pedido
 app.post('/calificaciones', async (req, res) => {
   const { pedido_id, producto_id, puntuacion, comentario } = req.body;
 
@@ -606,10 +623,11 @@ app.post('/calificaciones', async (req, res) => {
   }
 });
 
-// ================================================================
-// CONTRASEÑA
-// ================================================================
 
+
+// CONTRASEÑA
+
+// Actualizar contraseña
 app.post('/update-password', async (req, res) => {
   const { correo, nuevaPassword } = req.body;
 
@@ -643,6 +661,6 @@ app.post('/update-password', async (req, res) => {
   }
 });
 
-// ================================================================
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
