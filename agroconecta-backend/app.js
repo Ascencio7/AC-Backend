@@ -165,14 +165,26 @@ app.delete('/usuarios/:id', async (req, res) => {
 });
 
 // Crear usuario
+// Crear usuario
 app.post('/usuarios', async (req, res) => {
   const { nombre, correo, password, telefono, rol_id } = req.body;
 
+  // 1. Validar datos incompletos
   if (!nombre || !correo || !password || !rol_id) {
     return res.status(400).json({ success: false, message: "Datos incompletos" });
   }
 
+  // 2. VALIDACIÓN: Dominio exclusivo para Admin
+  // Bloquea cualquier intento de registro con el dominio @agroconectasv.com
+  if (correo.toLowerCase().endsWith('@agroconectasv.com')) {
+    return res.status(400).json({
+      success: false,
+      message: "El dominio @agroconectasv.com es exclusivo para el personal administrativo y no está disponible para registro público."
+    });
+  }
+
   try {
+    // 3. Verificar si el correo ya existe
     const existe = await pool.query(
       `SELECT 1 FROM usuarios WHERE correo = $1`, [correo]
     );
@@ -183,6 +195,7 @@ app.post('/usuarios', async (req, res) => {
       });
     }
 
+    // 4. Insertar en la tabla usuarios
     const userResult = await pool.query(
       `INSERT INTO usuarios (nombre, correo, password_hash, telefono)
        VALUES ($1, $2, crypt($3, gen_salt('bf')), $4)
@@ -192,6 +205,7 @@ app.post('/usuarios', async (req, res) => {
 
     const usuario_id = userResult.rows[0].usuario_id;
 
+    // 5. Asignar el rol
     await pool.query(
       `INSERT INTO usuarios_roles (usuario_id, rol_id) VALUES ($1, $2)`,
       [usuario_id, rol_id]
