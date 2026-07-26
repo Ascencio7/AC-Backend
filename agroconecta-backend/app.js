@@ -661,6 +661,86 @@ app.post('/update-password', async (req, res) => {
   }
 });
 
+// ============================================
+// PRECIOS AGRÍCOLAS (módulo Centro de Inteligencia Agrícola)
+// ============================================
+
+// Últimos precios por producto, con tendencia calculada vs. el registro anterior
+app.get('/precios/ultimos', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `WITH ranked AS (
+         SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY producto ORDER BY fecha DESC) AS rn,
+           LAG(precio_promedio) OVER (PARTITION BY producto ORDER BY fecha ASC) AS precio_anterior
+         FROM precios_agricolas
+       )
+       SELECT
+         precio_id, producto, mercado, departamento,
+         precio_minimo, precio_promedio, precio_maximo, fecha,
+         CASE
+           WHEN precio_anterior IS NULL THEN NULL
+           WHEN precio_promedio > precio_anterior THEN 'sube'
+           WHEN precio_promedio < precio_anterior THEN 'baja'
+           ELSE 'estable'
+         END AS tendencia
+       FROM ranked
+       WHERE rn = 1
+       ORDER BY producto ASC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR PRECIOS ULTIMOS:", error);
+    return res.status(500).json({ error: "Error al obtener precios" });
+  }
+});
+
+// Historial completo de un producto (para el gráfico)
+app.get('/precios/historial', async (req, res) => {
+  const { producto } = req.query;
+
+  if (!producto) {
+    return res.status(400).json({ error: "Falta el parámetro 'producto'" });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT precio_id, producto, mercado, departamento,
+              precio_minimo, precio_promedio, precio_maximo, fecha
+       FROM precios_agricolas
+       WHERE producto = $1
+       ORDER BY fecha ASC`,
+      [producto]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR PRECIOS HISTORIAL:", error);
+    return res.status(500).json({ error: "Error al obtener historial de precios" });
+  }
+});
+
+// Registrar un nuevo precio (uso admin / carga manual)
+app.post('/precios', async (req, res) => {
+  const { producto, mercado, departamento, precio_minimo, precio_promedio, precio_maximo, fecha } = req.body;
+
+  if (!producto || !mercado || !departamento || precio_minimo == null || precio_promedio == null || precio_maximo == null || !fecha) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO precios_agricolas
+         (producto, mercado, departamento, precio_minimo, precio_promedio, precio_maximo, fecha)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING *`,
+      [producto, mercado, departamento, Number(precio_minimo), Number(precio_promedio), Number(precio_maximo), fecha]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE PRECIO:", error);
+    return res.status(500).json({ error: "Error al registrar precio" });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
