@@ -742,5 +742,162 @@ app.post('/precios', async (req, res) => {
   }
 });
 
+// ============================================
+// MI FINCA (módulo Centro de Inteligencia Agrícola)
+// ============================================
+
+// Listar fincas de un usuario
+app.get('/fincas', async (req, res) => {
+  const { usuario_id } = req.query;
+  if (!usuario_id) {
+    return res.status(400).json({ error: "Falta el parámetro 'usuario_id'" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT * FROM fincas WHERE usuario_id = $1 ORDER BY fecha_registro DESC`,
+      [usuario_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR FINCAS:", error);
+    return res.status(500).json({ error: "Error al obtener fincas" });
+  }
+});
+
+// Obtener una finca por ID
+app.get('/fincas/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM fincas WHERE finca_id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Finca no encontrada" });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR GET FINCA:", error);
+    return res.status(500).json({ error: "Error al obtener finca" });
+  }
+});
+
+// Crear finca
+app.post('/fincas', async (req, res) => {
+  const { usuario_id, nombre, latitud, longitud, area, cultivo, fecha_siembra, variedad } = req.body;
+
+  if (!usuario_id || !nombre || !area || !cultivo) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO fincas (usuario_id, nombre, latitud, longitud, area, cultivo, fecha_siembra, variedad)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING *`,
+      [
+        usuario_id, nombre,
+        latitud != null ? Number(latitud) : null,
+        longitud != null ? Number(longitud) : null,
+        Number(area), cultivo, fecha_siembra || null, variedad || null
+      ]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE FINCA:", error);
+    return res.status(500).json({ error: "Error al crear finca" });
+  }
+});
+
+// Eliminar finca
+app.delete('/fincas/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM fincas WHERE finca_id = $1 RETURNING finca_id', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: "Finca no encontrada" });
+    }
+    return res.status(200).json({ success: true, message: "Finca eliminada" });
+  } catch (error) {
+    console.error("❌ ERROR DELETE FINCA:", error);
+    return res.status(500).json({ success: false, message: "Error al eliminar finca" });
+  }
+});
+
+// ── Actividades (bitácora) ──────────────────────────────────────────
+
+// Listar actividades de una finca
+app.get('/fincas/:id/actividades', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM actividades_finca WHERE finca_id = $1 ORDER BY fecha DESC`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR ACTIVIDADES:", error);
+    return res.status(500).json({ error: "Error al obtener actividades" });
+  }
+});
+
+// Registrar actividad
+app.post('/fincas/:id/actividades', async (req, res) => {
+  const { id } = req.params;
+  const { tipo, descripcion, fecha, foto_url } = req.body;
+
+  if (!tipo || !descripcion || !fecha) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO actividades_finca (finca_id, tipo, descripcion, fecha, foto_url)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING *`,
+      [id, tipo, descripcion, fecha, foto_url || null]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE ACTIVIDAD:", error);
+    return res.status(500).json({ error: "Error al registrar actividad" });
+  }
+});
+
+// ── Fotos (galería) ──────────────────────────────────────────────────
+
+// Listar fotos de una finca
+app.get('/fincas/:id/fotos', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM fotos_finca WHERE finca_id = $1 ORDER BY fecha DESC`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR FOTOS FINCA:", error);
+    return res.status(500).json({ error: "Error al obtener fotos" });
+  }
+});
+
+// Agregar foto a la finca (la subida del archivo ya ocurrió en Supabase Storage desde la app)
+app.post('/fincas/:id/fotos', async (req, res) => {
+  const { id } = req.params;
+  const { url } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: "Falta la URL de la foto" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO fotos_finca (finca_id, url) VALUES ($1, $2) RETURNING *`,
+      [id, url]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE FOTO FINCA:", error);
+    return res.status(500).json({ error: "Error al guardar foto" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
