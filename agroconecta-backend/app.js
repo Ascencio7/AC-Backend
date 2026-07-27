@@ -958,5 +958,137 @@ app.delete('/agenda/:id', async (req, res) => {
   }
 });
 
+// ============================================
+// LOGÍSTICA (módulo Centro de Inteligencia Agrícola)
+// estado: 'solicitado' | 'aceptado' | 'en_camino' | 'entregado' | 'cancelado'
+// ============================================
+
+// Mis solicitudes (como quien pide el transporte)
+app.get('/transporte/mis-solicitudes', async (req, res) => {
+  const { usuario_id } = req.query;
+  if (!usuario_id) {
+    return res.status(400).json({ error: "Falta el parámetro 'usuario_id'" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT st.*,
+              u.nombre AS nombre_solicitante,
+              ut.nombre AS nombre_transportista
+       FROM solicitudes_transporte st
+       LEFT JOIN usuarios u ON st.usuario_id = u.usuario_id
+       LEFT JOIN usuarios ut ON st.transportista_id = ut.usuario_id
+       WHERE st.usuario_id = $1
+       ORDER BY st.fecha_solicitud DESC`,
+      [usuario_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR MIS SOLICITUDES:", error);
+    return res.status(500).json({ error: "Error al obtener solicitudes" });
+  }
+});
+
+// Solicitudes disponibles para aceptar (panel transportista)
+app.get('/transporte/disponibles', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT st.*,
+              u.nombre AS nombre_solicitante,
+              ut.nombre AS nombre_transportista
+       FROM solicitudes_transporte st
+       LEFT JOIN usuarios u ON st.usuario_id = u.usuario_id
+       LEFT JOIN usuarios ut ON st.transportista_id = ut.usuario_id
+       WHERE st.estado = 'solicitado'
+       ORDER BY st.fecha_solicitud ASC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR SOLICITUDES DISPONIBLES:", error);
+    return res.status(500).json({ error: "Error al obtener solicitudes disponibles" });
+  }
+});
+
+// Obtener una solicitud por ID
+app.get('/transporte/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT st.*,
+              u.nombre AS nombre_solicitante,
+              ut.nombre AS nombre_transportista
+       FROM solicitudes_transporte st
+       LEFT JOIN usuarios u ON st.usuario_id = u.usuario_id
+       LEFT JOIN usuarios ut ON st.transportista_id = ut.usuario_id
+       WHERE st.solicitud_id = $1`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Solicitud no encontrada" });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR GET SOLICITUD:", error);
+    return res.status(500).json({ error: "Error al obtener la solicitud" });
+  }
+});
+
+// Crear solicitud de transporte
+app.post('/transporte', async (req, res) => {
+  const { usuario_id, origen_direccion, origen_lat, origen_lon, destino_direccion, nota } = req.body;
+
+  if (!usuario_id || !origen_direccion || !destino_direccion) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO solicitudes_transporte
+         (usuario_id, origen_direccion, origen_lat, origen_lon, destino_direccion, nota, estado)
+       VALUES ($1,$2,$3,$4,$5,$6,'solicitado')
+       RETURNING *`,
+      [
+        usuario_id, origen_direccion,
+        origen_lat != null ? Number(origen_lat) : null,
+        origen_lon != null ? Number(origen_lon) : null,
+        destino_direccion, nota || null
+      ]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE SOLICITUD:", error);
+    return res.status(500).json({ error: "Error al crear la solicitud" });
+  }
+});
+
+// Actualizar estado (aceptar / iniciar viaje / marcar entregado)
+app.put('/transporte/:id/estado', async (req, res) => {
+  const { id } = req.params;
+  const { estado, transportista_id } = req.body;
+
+  const estadosValidos = ['solicitado', 'aceptado', 'en_camino', 'entregado', 'cancelado'];
+  if (!estado || !estadosValidos.includes(estado)) {
+    return res.status(400).json({ error: "Estado inválido" });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE solicitudes_transporte
+       SET estado = $1,
+           transportista_id = COALESCE($2, transportista_id),
+           fecha_actualizacion = NOW()
+       WHERE solicitud_id = $3
+       RETURNING *`,
+      [estado, transportista_id || null, id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Solicitud no encontrada" });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR UPDATE ESTADO TRANSPORTE:", error);
+    return res.status(500).json({ error: "Error al actualizar el estado" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
