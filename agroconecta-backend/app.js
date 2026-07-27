@@ -899,5 +899,64 @@ app.post('/fincas/:id/fotos', async (req, res) => {
   }
 });
 
+// ============================================
+// AGENDA AGRÍCOLA (módulo Centro de Inteligencia Agrícola)
+// ============================================
+
+// Listar eventos de un usuario
+app.get('/agenda', async (req, res) => {
+  const { usuario_id } = req.query;
+  if (!usuario_id) {
+    return res.status(400).json({ error: "Falta el parámetro 'usuario_id'" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT * FROM agenda_agricola WHERE usuario_id = $1 ORDER BY fecha ASC, hora ASC`,
+      [usuario_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR AGENDA:", error);
+    return res.status(500).json({ error: "Error al obtener la agenda" });
+  }
+});
+
+// Crear evento
+app.post('/agenda', async (req, res) => {
+  const { usuario_id, finca_id, titulo, descripcion, fecha, hora, tipo, repetir } = req.body;
+
+  if (!usuario_id || !titulo || !fecha || !hora) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO agenda_agricola (usuario_id, finca_id, titulo, descripcion, fecha, hora, tipo, repetir)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING *`,
+      [usuario_id, finca_id || null, titulo, descripcion || null, fecha, hora, tipo || 'General', repetir || 'ninguna']
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE EVENTO:", error);
+    return res.status(500).json({ error: "Error al crear el evento" });
+  }
+});
+
+// Eliminar evento
+app.delete('/agenda/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM agenda_agricola WHERE evento_id = $1 RETURNING evento_id', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: "Evento no encontrado" });
+    }
+    return res.status(200).json({ success: true, message: "Evento eliminado" });
+  } catch (error) {
+    console.error("❌ ERROR DELETE EVENTO:", error);
+    return res.status(500).json({ success: false, message: "Error al eliminar el evento" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
