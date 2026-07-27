@@ -1090,5 +1090,143 @@ app.put('/transporte/:id/estado', async (req, res) => {
   }
 });
 
+// ============================================
+// GANADERÍA (AgroConecta OS)
+// ============================================
+
+// Listar animales de un usuario
+app.get('/ganaderia/animales', async (req, res) => {
+  const { usuario_id } = req.query;
+  if (!usuario_id) {
+    return res.status(400).json({ error: "Falta el parámetro 'usuario_id'" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT * FROM animales WHERE usuario_id = $1 ORDER BY animal_id DESC`,
+      [usuario_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR ANIMALES:", error);
+    return res.status(500).json({ error: "Error al obtener animales" });
+  }
+});
+
+// Obtener un animal por ID
+app.get('/ganaderia/animales/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM animales WHERE animal_id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Animal no encontrado" });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR GET ANIMAL:", error);
+    return res.status(500).json({ error: "Error al obtener el animal" });
+  }
+});
+
+// Crear animal
+app.post('/ganaderia/animales', async (req, res) => {
+  const { usuario_id, tipo, identificador, raza, sexo, fecha_nacimiento, peso_actual } = req.body;
+
+  if (!usuario_id || !tipo || !identificador || !sexo) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO animales (usuario_id, tipo, identificador, raza, sexo, fecha_nacimiento, peso_actual, estado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'Activo')
+       RETURNING *`,
+      [
+        usuario_id, tipo, identificador, raza || null, sexo,
+        fecha_nacimiento || null,
+        peso_actual != null ? Number(peso_actual) : null
+      ]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE ANIMAL:", error);
+    return res.status(500).json({ error: "Error al registrar el animal" });
+  }
+});
+
+// ── Peso ──────────────────────────────────────────────────────────────
+app.get('/ganaderia/animales/:id/pesos', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM registros_peso WHERE animal_id = $1 ORDER BY fecha ASC`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR PESOS:", error);
+    return res.status(500).json({ error: "Error al obtener el historial de peso" });
+  }
+});
+
+app.post('/ganaderia/animales/:id/pesos', async (req, res) => {
+  const { id } = req.params;
+  const { peso, fecha } = req.body;
+
+  if (peso == null || !fecha) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO registros_peso (animal_id, peso, fecha) VALUES ($1,$2,$3) RETURNING *`,
+      [id, Number(peso), fecha]
+    );
+    // Actualiza también el peso_actual del animal
+    await pool.query(`UPDATE animales SET peso_actual = $1 WHERE animal_id = $2`, [Number(peso), id]);
+
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE PESO:", error);
+    return res.status(500).json({ error: "Error al registrar el peso" });
+  }
+});
+
+// ── Control sanitario ────────────────────────────────────────────────
+app.get('/ganaderia/animales/:id/sanitario', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM registros_sanitarios WHERE animal_id = $1 ORDER BY fecha DESC`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR SANITARIO:", error);
+    return res.status(500).json({ error: "Error al obtener el historial sanitario" });
+  }
+});
+
+app.post('/ganaderia/animales/:id/sanitario', async (req, res) => {
+  const { id } = req.params;
+  const { tipo, producto, fecha, proxima_fecha, nota } = req.body;
+
+  if (!tipo || !producto || !fecha) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO registros_sanitarios (animal_id, tipo, producto, fecha, proxima_fecha, nota)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING *`,
+      [id, tipo, producto, fecha, proxima_fecha || null, nota || null]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE SANITARIO:", error);
+    return res.status(500).json({ error: "Error al registrar el evento sanitario" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
