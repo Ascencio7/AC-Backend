@@ -215,6 +215,71 @@ app.post('/usuarios', async (req, res) => {
 });
 
 // ============================================
+// SISTEMA DE IDENTIDAD ÚNICA / MÚLTIPLES PERFILES
+// ============================================
+
+// Listar perfiles activos de un usuario (con sus datos específicos)
+app.get('/usuarios/:id/perfiles', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT r.rol_id, r.nombre AS rol, pd.datos
+       FROM usuarios_roles ur
+       JOIN roles r ON ur.rol_id = r.rol_id
+       LEFT JOIN perfiles_detalle pd ON pd.usuario_id = ur.usuario_id AND pd.rol_id = r.rol_id
+       WHERE ur.usuario_id = $1
+       ORDER BY r.rol_id`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR PERFILES:", error);
+    return res.status(500).json({ error: "Error al obtener perfiles" });
+  }
+});
+
+// Activar un nuevo perfil para un usuario existente (misma cuenta, sin re-registro)
+app.post('/usuarios/:id/perfiles', async (req, res) => {
+  const { id } = req.params;
+  const { rol_id, datos } = req.body;
+
+  if (!rol_id) {
+    return res.status(400).json({ error: "Falta rol_id" });
+  }
+
+  try {
+    const yaExiste = await pool.query(
+      `SELECT 1 FROM usuarios_roles WHERE usuario_id = $1 AND rol_id = $2`,
+      [id, rol_id]
+    );
+
+    if (yaExiste.rowCount === 0) {
+      await pool.query(
+        `INSERT INTO usuarios_roles (usuario_id, rol_id) VALUES ($1, $2)`,
+        [id, rol_id]
+      );
+    }
+
+    let datosParsed = null;
+    if (datos) {
+      try { datosParsed = JSON.parse(datos); } catch (e) { datosParsed = null; }
+    }
+
+    await pool.query(
+      `INSERT INTO perfiles_detalle (usuario_id, rol_id, datos)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (usuario_id, rol_id) DO UPDATE SET datos = EXCLUDED.datos`,
+      [id, rol_id, datosParsed]
+    );
+
+    return res.status(201).json({ success: true, message: "Perfil activado" });
+  } catch (error) {
+    console.error("❌ ERROR ACTIVAR PERFIL:", error);
+    return res.status(500).json({ success: false, message: "Error al activar el perfil" });
+  }
+});
+
+// ============================================
 // ROLES Y CATEGORÍAS
 // ============================================
 
