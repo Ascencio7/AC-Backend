@@ -1363,5 +1363,56 @@ app.post('/acuicultura/estanques/:id/alimentacion', async (req, res) => {
   }
 });
 
+// ============================================
+// INSUMOS AGRÍCOLAS (catálogo, AgroConecta OS)
+// ============================================
+
+// Listar insumos, con búsqueda y filtro por tipo opcionales
+app.get('/insumos', async (req, res) => {
+  const { busqueda, tipo } = req.query;
+  try {
+    let query = `SELECT * FROM insumos WHERE 1=1`;
+    const params = [];
+
+    if (busqueda) {
+      params.push(`%${busqueda}%`);
+      query += ` AND (nombre ILIKE $${params.length} OR marca ILIKE $${params.length} OR indicacion ILIKE $${params.length})`;
+    }
+    if (tipo) {
+      params.push(tipo);
+      query += ` AND tipo = $${params.length}`;
+    }
+    query += ` ORDER BY nombre ASC`;
+
+    const result = await pool.query(query, params);
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR INSUMOS:", error);
+    return res.status(500).json({ error: "Error al obtener insumos" });
+  }
+});
+
+// Crear insumo
+app.post('/insumos', async (req, res) => {
+  const { nombre, marca, tipo, indicacion, imagen_url } = req.body;
+
+  if (!nombre || !tipo || !indicacion) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO insumos (nombre, marca, tipo, indicacion, imagen_url)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING *`,
+      [nombre, marca || null, tipo, indicacion, imagen_url || null]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE INSUMO:", error);
+    return res.status(500).json({ error: "Error al crear el insumo" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
