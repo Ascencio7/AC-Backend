@@ -1228,5 +1228,292 @@ app.post('/ganaderia/animales/:id/sanitario', async (req, res) => {
   }
 });
 
+
+// ============================================
+// ACUICULTURA Y PESCA (AgroConecta OS)
+// ============================================
+
+// Listar estanques de un usuario
+app.get('/acuicultura/estanques', async (req, res) => {
+  const { usuario_id } = req.query;
+  if (!usuario_id) {
+    return res.status(400).json({ error: "Falta el parámetro 'usuario_id'" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT * FROM estanques WHERE usuario_id = $1 ORDER BY estanque_id DESC`,
+      [usuario_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR ESTANQUES:", error);
+    return res.status(500).json({ error: "Error al obtener estanques" });
+  }
+});
+
+// Obtener un estanque por ID
+app.get('/acuicultura/estanques/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM estanques WHERE estanque_id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Estanque no encontrado" });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR GET ESTANQUE:", error);
+    return res.status(500).json({ error: "Error al obtener el estanque" });
+  }
+});
+
+// Crear estanque
+app.post('/acuicultura/estanques', async (req, res) => {
+  const { usuario_id, especie, nombre, area_m2, cantidad_inicial, fecha_siembra } = req.body;
+
+  if (!usuario_id || !especie || !nombre || !cantidad_inicial) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO estanques (usuario_id, especie, nombre, area_m2, cantidad_inicial, cantidad_actual, fecha_siembra, estado)
+       VALUES ($1,$2,$3,$4,$5,$5,$6,'Activo')
+       RETURNING *`,
+      [
+        usuario_id, especie, nombre,
+        area_m2 != null ? Number(area_m2) : null,
+        Number(cantidad_inicial), fecha_siembra || null
+      ]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE ESTANQUE:", error);
+    return res.status(500).json({ error: "Error al registrar el estanque" });
+  }
+});
+
+// ── Calidad de agua ──────────────────────────────────────────────────
+app.get('/acuicultura/estanques/:id/calidad-agua', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM registros_calidad_agua WHERE estanque_id = $1 ORDER BY fecha ASC`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR CALIDAD AGUA:", error);
+    return res.status(500).json({ error: "Error al obtener mediciones de agua" });
+  }
+});
+
+app.post('/acuicultura/estanques/:id/calidad-agua', async (req, res) => {
+  const { id } = req.params;
+  const { temperatura, ph, oxigeno_disuelto, fecha } = req.body;
+
+  if (!fecha) {
+    return res.status(400).json({ error: "Falta la fecha" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO registros_calidad_agua (estanque_id, temperatura, ph, oxigeno_disuelto, fecha)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING *`,
+      [
+        id,
+        temperatura != null ? Number(temperatura) : null,
+        ph != null ? Number(ph) : null,
+        oxigeno_disuelto != null ? Number(oxigeno_disuelto) : null,
+        fecha
+      ]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE CALIDAD AGUA:", error);
+    return res.status(500).json({ error: "Error al registrar la medición" });
+  }
+});
+
+// ── Alimentación ─────────────────────────────────────────────────────
+app.get('/acuicultura/estanques/:id/alimentacion', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM registros_alimentacion_acuicola WHERE estanque_id = $1 ORDER BY fecha DESC`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR ALIMENTACION:", error);
+    return res.status(500).json({ error: "Error al obtener alimentación" });
+  }
+});
+
+app.post('/acuicultura/estanques/:id/alimentacion', async (req, res) => {
+  const { id } = req.params;
+  const { cantidad_kg, tipo_alimento, fecha } = req.body;
+
+  if (cantidad_kg == null || !fecha) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO registros_alimentacion_acuicola (estanque_id, cantidad_kg, tipo_alimento, fecha)
+       VALUES ($1,$2,$3,$4)
+       RETURNING *`,
+      [id, Number(cantidad_kg), tipo_alimento || null, fecha]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE ALIMENTACION:", error);
+    return res.status(500).json({ error: "Error al registrar la alimentación" });
+  }
+});
+
+// ============================================
+// ACUICULTURA Y PESCA (AgroConecta OS)
+// ============================================
+
+// Listar estanques de un usuario
+app.get('/acuicultura/estanques', async (req, res) => {
+  const { usuario_id } = req.query;
+  if (!usuario_id) {
+    return res.status(400).json({ error: "Falta el parámetro 'usuario_id'" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT * FROM estanques WHERE usuario_id = $1 ORDER BY estanque_id DESC`,
+      [usuario_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR ESTANQUES:", error);
+    return res.status(500).json({ error: "Error al obtener estanques" });
+  }
+});
+
+// Obtener un estanque por ID
+app.get('/acuicultura/estanques/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM estanques WHERE estanque_id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Estanque no encontrado" });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR GET ESTANQUE:", error);
+    return res.status(500).json({ error: "Error al obtener el estanque" });
+  }
+});
+
+// Crear estanque
+app.post('/acuicultura/estanques', async (req, res) => {
+  const { usuario_id, especie, nombre, area_m2, cantidad_inicial, fecha_siembra } = req.body;
+
+  if (!usuario_id || !especie || !nombre || !cantidad_inicial) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO estanques (usuario_id, especie, nombre, area_m2, cantidad_inicial, cantidad_actual, fecha_siembra, estado)
+       VALUES ($1,$2,$3,$4,$5,$5,$6,'Activo')
+       RETURNING *`,
+      [
+        usuario_id, especie, nombre,
+        area_m2 != null ? Number(area_m2) : null,
+        Number(cantidad_inicial), fecha_siembra || null
+      ]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE ESTANQUE:", error);
+    return res.status(500).json({ error: "Error al registrar el estanque" });
+  }
+});
+
+// ── Calidad de agua ──────────────────────────────────────────────────
+app.get('/acuicultura/estanques/:id/calidad-agua', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM registros_calidad_agua WHERE estanque_id = $1 ORDER BY fecha ASC`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR CALIDAD AGUA:", error);
+    return res.status(500).json({ error: "Error al obtener mediciones de agua" });
+  }
+});
+
+app.post('/acuicultura/estanques/:id/calidad-agua', async (req, res) => {
+  const { id } = req.params;
+  const { temperatura, ph, oxigeno_disuelto, fecha } = req.body;
+
+  if (!fecha) {
+    return res.status(400).json({ error: "Falta la fecha" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO registros_calidad_agua (estanque_id, temperatura, ph, oxigeno_disuelto, fecha)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING *`,
+      [
+        id,
+        temperatura != null ? Number(temperatura) : null,
+        ph != null ? Number(ph) : null,
+        oxigeno_disuelto != null ? Number(oxigeno_disuelto) : null,
+        fecha
+      ]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE CALIDAD AGUA:", error);
+    return res.status(500).json({ error: "Error al registrar la medición" });
+  }
+});
+
+// ── Alimentación ─────────────────────────────────────────────────────
+app.get('/acuicultura/estanques/:id/alimentacion', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT * FROM registros_alimentacion_acuicola WHERE estanque_id = $1 ORDER BY fecha DESC`,
+      [id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR ALIMENTACION:", error);
+    return res.status(500).json({ error: "Error al obtener alimentación" });
+  }
+});
+
+app.post('/acuicultura/estanques/:id/alimentacion', async (req, res) => {
+  const { id } = req.params;
+  const { cantidad_kg, tipo_alimento, fecha } = req.body;
+
+  if (cantidad_kg == null || !fecha) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO registros_alimentacion_acuicola (estanque_id, cantidad_kg, tipo_alimento, fecha)
+       VALUES ($1,$2,$3,$4)
+       RETURNING *`,
+      [id, Number(cantidad_kg), tipo_alimento || null, fecha]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("❌ ERROR CREATE ALIMENTACION:", error);
+    return res.status(500).json({ error: "Error al registrar la alimentación" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
