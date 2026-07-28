@@ -1414,5 +1414,25 @@ app.post('/insumos', async (req, res) => {
   }
 });
 
+// ============================================
+// SUBCATEGORÍAS (Marketplace unificado)
+// ============================================
+app.get('/subcategorias', async (req, res) => {
+  const { categoria_id } = req.query;
+  if (!categoria_id) {
+    return res.status(400).json({ error: "Falta el parámetro 'categoria_id'" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT * FROM subcategorias WHERE categoria_id = $1 ORDER BY nombre ASC`,
+      [categoria_id]
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("❌ ERROR LISTAR SUBCATEGORIAS:", error);
+    return res.status(500).json({ error: "Error al obtener subcategorías" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log("🚀 Servidor corriendo en puerto", PORT); });
