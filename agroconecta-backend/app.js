@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Conexion a Supabase
+// Conexión a Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -25,12 +25,9 @@ app.get('/', (req, res) => {
   res.status(200).json({ mensaje: 'API funcionando 🚀' });
 });
 
-
-
-// EndpointS DE AgroConecta
-
-
+// ============================================
 // AUTENTICACIÓN
+// ============================================
 app.post('/login', async (req, res) => {
   console.log("📥 LOGIN BODY:", req.body);
   const { correo, password } = req.body;
@@ -42,8 +39,8 @@ app.post('/login', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
-          u.usuario_id, u.nombre, u.correo, u.telefono, u.foto_perfil,
-          u.password_hash, r.rol_id, r.nombre AS rol
+         u.usuario_id, u.nombre, u.correo, u.telefono, u.foto_perfil,
+         u.password_hash, r.rol_id, r.nombre AS rol
        FROM usuarios u
        LEFT JOIN usuarios_roles ur ON u.usuario_id = ur.usuario_id
        LEFT JOIN roles r ON ur.rol_id = r.rol_id
@@ -65,6 +62,14 @@ app.post('/login', async (req, res) => {
     );
 
     if (passwordCheck.rows.length > 0) {
+      const perfilesResult = await pool.query(
+        `SELECT r.rol_id, r.nombre AS rol
+         FROM usuarios_roles ur
+         JOIN roles r ON ur.rol_id = r.rol_id
+         WHERE ur.usuario_id = $1`,
+        [user.usuario_id]
+      );
+
       return res.status(200).json({
         success: true,
         usuario_id: user.usuario_id,
@@ -73,7 +78,8 @@ app.post('/login', async (req, res) => {
         telefono: user.telefono || null,
         foto_perfil: user.foto_perfil || null,
         rol_id: user.rol_id,
-        rol: user.rol
+        rol: user.rol,
+        perfiles: perfilesResult.rows
       });
     } else {
       return res.status(200).json({ success: false, message: "Credenciales incorrectas" });
@@ -85,10 +91,10 @@ app.post('/login', async (req, res) => {
   }
 });
 
-
+// ============================================
 // USUARIOS
+// ============================================
 
-// Listar usuarios (incluye foto_perfil)
 app.get('/usuarios', async (req, res) => {
   try {
     const result = await pool.query(
@@ -108,8 +114,6 @@ app.get('/usuarios', async (req, res) => {
   }
 });
 
-
-// Actualizar usuario (incluye foto_perfil y contraseña opcional)
 app.put('/usuarios/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, correo, telefono, estado, password, foto_perfil } = req.body;
@@ -120,7 +124,6 @@ app.put('/usuarios/:id', async (req, res) => {
 
   try {
     if (password && password.trim() !== '') {
-      // Actualizar con nueva contraseña
       await pool.query(
         `UPDATE usuarios
          SET nombre = $1, correo = $2, telefono = $3, estado = $4,
@@ -130,7 +133,6 @@ app.put('/usuarios/:id', async (req, res) => {
         [nombre, correo, telefono || null, estado ?? true, password, foto_perfil || null, id]
       );
     } else {
-      // Sin cambio de contraseña
       await pool.query(
         `UPDATE usuarios
          SET nombre = $1, correo = $2, telefono = $3, estado = $4,
@@ -148,8 +150,6 @@ app.put('/usuarios/:id', async (req, res) => {
   }
 });
 
-
-// Eliminar usuario (lógico)
 app.delete('/usuarios/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -167,18 +167,13 @@ app.delete('/usuarios/:id', async (req, res) => {
   }
 });
 
-
-// Crear usuario
 app.post('/usuarios', async (req, res) => {
   const { nombre, correo, password, telefono, rol_id } = req.body;
 
-  // Validar datos incompletos
   if (!nombre || !correo || !password || !rol_id) {
     return res.status(400).json({ success: false, message: "Datos incompletos" });
   }
 
-  // VALIDACIÓN: Dominio exclusivo para Admin
-  // Bloquea cualquier intento de registro con el dominio @agroconectasv.com
   if (correo.toLowerCase().endsWith('@agroconectasv.com')) {
     return res.status(400).json({
       success: false,
@@ -187,7 +182,6 @@ app.post('/usuarios', async (req, res) => {
   }
 
   try {
-    // Verificar si el correo ya existe
     const existe = await pool.query(
       `SELECT 1 FROM usuarios WHERE correo = $1`, [correo]
     );
@@ -198,7 +192,6 @@ app.post('/usuarios', async (req, res) => {
       });
     }
 
-    // Insertar en la tabla usuarios
     const userResult = await pool.query(
       `INSERT INTO usuarios (nombre, correo, password_hash, telefono)
        VALUES ($1, $2, crypt($3, gen_salt('bf')), $4)
@@ -208,7 +201,6 @@ app.post('/usuarios', async (req, res) => {
 
     const usuario_id = userResult.rows[0].usuario_id;
 
-    // Asignar el rol
     await pool.query(
       `INSERT INTO usuarios_roles (usuario_id, rol_id) VALUES ($1, $2)`,
       [usuario_id, rol_id]
@@ -222,9 +214,9 @@ app.post('/usuarios', async (req, res) => {
   }
 });
 
-
-
-// ROLES
+// ============================================
+// ROLES Y CATEGORÍAS
+// ============================================
 
 app.get('/roles', async (req, res) => {
   try {
@@ -236,10 +228,6 @@ app.get('/roles', async (req, res) => {
   }
 });
 
-
-
-// CATEGORÍAS
-
 app.get('/categorias', async (req, res) => {
   try {
     const result = await pool.query('SELECT categoria_id, nombre FROM categorias ORDER BY nombre ASC');
@@ -250,11 +238,10 @@ app.get('/categorias', async (req, res) => {
   }
 });
 
-
-
+// ============================================
 // PRODUCTOS
+// ============================================
 
-// Listar productos (El filtrado se manejará en la app según el rol)
 app.get('/productos', async (req, res) => {
   try {
     const result = await pool.query(
@@ -269,7 +256,6 @@ app.get('/productos', async (req, res) => {
        LEFT JOIN usuarios u ON p.usuario_id = u.usuario_id
        ORDER BY p.producto_id ASC`
     );
-    // Eliminamos el "WHERE p.estado = true" para enviar la lista completa a la App
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error("❌ ERROR PRODUCTOS:", error);
@@ -277,15 +263,13 @@ app.get('/productos', async (req, res) => {
   }
 });
 
-
-// Crear producto
 app.post('/productos', async (req, res) => {
   const {
     usuario_id, categoria_id, nombre, descripcion, precio, existencia, imagen,
     telefono_vendedor, latitud, longitud, direccion,
     acepta_efectivo, acepta_transferencia, acepta_tarjeta
   } = req.body;
-  console.log("📦 Crear producto body:", JSON.stringify({ nombre, latitud, longitud, telefono_vendedor, direccion }));
+  
   try {
     const result = await pool.query(
       `INSERT INTO productos (
@@ -301,7 +285,9 @@ app.post('/productos', async (req, res) => {
         latitud != null && latitud !== undefined ? Number(latitud) : null,
         longitud != null && longitud !== undefined ? Number(longitud) : null,
         direccion || null,
-        acepta_efectivo ?? false, acepta_transferencia ?? false, acepta_tarjeta ?? false
+        acepta_efectivo ?? false, 
+        acepta_transferencia ?? false, 
+        acepta_tarjeta ?? false
       ]
     );
     return res.status(201).json(result.rows[0]);
@@ -311,8 +297,6 @@ app.post('/productos', async (req, res) => {
   }
 });
 
-
-// Actualizar producto
 app.put('/productos/:id', async (req, res) => {
   const { id } = req.params;
   const {
@@ -320,7 +304,7 @@ app.put('/productos/:id', async (req, res) => {
     telefono_vendedor, latitud, longitud, direccion,
     acepta_efectivo, acepta_transferencia, acepta_tarjeta
   } = req.body;
-  console.log("✏️ Actualizar producto id:", id, "body:", JSON.stringify({ nombre, latitud, longitud, telefono_vendedor, direccion }));
+
   try {
     await pool.query(
       `UPDATE productos 
@@ -351,8 +335,6 @@ app.put('/productos/:id', async (req, res) => {
   }
 });
 
-
-// Obtener producto por ID
 app.get('/productos/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -367,11 +349,8 @@ app.get('/productos/:id', async (req, res) => {
   }
 });
 
-
-// Eliminar producto (borrado lógico - cambia estado a false)
 app.delete('/productos/:id', async (req, res) => {
   const { id } = req.params;
-  console.log("🗑️ Eliminar producto id:", id);
   try {
     const result = await pool.query(
       `UPDATE productos SET estado = false WHERE producto_id = $1 RETURNING producto_id`,
@@ -387,10 +366,9 @@ app.delete('/productos/:id', async (req, res) => {
   }
 });
 
-
-
+// ============================================
 // PEDIDOS
-// estado_id: 1=pendiente, 2=en proceso, 3=entregado, 4=cancelado
+// ============================================
 
 app.post('/pedidos', async (req, res) => {
   const { usuario_id, total, estado_id, detalles } = req.body;
@@ -448,8 +426,6 @@ app.post('/pedidos', async (req, res) => {
   }
 });
 
-
-// Obtener todos los pedidos
 app.get('/pedidos', async (req, res) => {
   try {
     const result = await pool.query(
@@ -471,8 +447,6 @@ app.get('/pedidos', async (req, res) => {
   }
 });
 
-
-// Obtener todos los pedidos de un usuario
 app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
   const { usuario_id } = req.params;
   try {
@@ -515,8 +489,6 @@ app.get('/pedidos/usuario/:usuario_id', async (req, res) => {
   }
 });
 
-
-// Obtener pedido por ID
 app.get('/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -534,8 +506,6 @@ app.get('/pedidos/:id', async (req, res) => {
   }
 });
 
-
-// Actualizar pedido por ID
 app.put('/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   const { estado_id } = req.body;
@@ -551,8 +521,6 @@ app.put('/pedidos/:id', async (req, res) => {
   }
 });
 
-
-// Obtener todos los pedidos de un vendedor (incluye detalles) por ID
 app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
   const { vendedor_id } = req.params;
   try {
@@ -588,11 +556,10 @@ app.get('/pedidos/vendedor/:vendedor_id', async (req, res) => {
   }
 });
 
+// ============================================
+// CALIFICACIONES Y CONTRASEÑAS
+// ============================================
 
-
-// CALIFICACIONES
-
-// Calificar un producto de un pedido
 app.post('/calificaciones', async (req, res) => {
   const { pedido_id, producto_id, puntuacion, comentario } = req.body;
 
@@ -623,11 +590,6 @@ app.post('/calificaciones', async (req, res) => {
   }
 });
 
-
-
-// CONTRASEÑA
-
-// Actualizar contraseña
 app.post('/update-password', async (req, res) => {
   const { correo, nuevaPassword } = req.body;
 
@@ -662,10 +624,9 @@ app.post('/update-password', async (req, res) => {
 });
 
 // ============================================
-// PRECIOS AGRÍCOLAS (módulo Centro de Inteligencia Agrícola)
+// PRECIOS AGRÍCOLAS
 // ============================================
 
-// Últimos precios por producto, con tendencia calculada vs. el registro anterior
 app.get('/precios/ultimos', async (req, res) => {
   try {
     const result = await pool.query(
@@ -695,7 +656,6 @@ app.get('/precios/ultimos', async (req, res) => {
   }
 });
 
-// Historial completo de un producto (para el gráfico)
 app.get('/precios/historial', async (req, res) => {
   const { producto } = req.query;
 
@@ -719,7 +679,6 @@ app.get('/precios/historial', async (req, res) => {
   }
 });
 
-// Registrar un nuevo precio (uso admin / carga manual)
 app.post('/precios', async (req, res) => {
   const { producto, mercado, departamento, precio_minimo, precio_promedio, precio_maximo, fecha } = req.body;
 
@@ -743,10 +702,9 @@ app.post('/precios', async (req, res) => {
 });
 
 // ============================================
-// MI FINCA (módulo Centro de Inteligencia Agrícola)
+// MI FINCA
 // ============================================
 
-// Listar fincas de un usuario
 app.get('/fincas', async (req, res) => {
   const { usuario_id } = req.query;
   if (!usuario_id) {
@@ -764,7 +722,6 @@ app.get('/fincas', async (req, res) => {
   }
 });
 
-// Obtener una finca por ID
 app.get('/fincas/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -779,7 +736,6 @@ app.get('/fincas/:id', async (req, res) => {
   }
 });
 
-// Crear finca
 app.post('/fincas', async (req, res) => {
   const { usuario_id, nombre, latitud, longitud, area, cultivo, fecha_siembra, variedad } = req.body;
 
@@ -806,7 +762,6 @@ app.post('/fincas', async (req, res) => {
   }
 });
 
-// Eliminar finca
 app.delete('/fincas/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -821,9 +776,6 @@ app.delete('/fincas/:id', async (req, res) => {
   }
 });
 
-// ── Actividades (bitácora) ──────────────────────────────────────────
-
-// Listar actividades de una finca
 app.get('/fincas/:id/actividades', async (req, res) => {
   const { id } = req.params;
   try {
@@ -838,7 +790,6 @@ app.get('/fincas/:id/actividades', async (req, res) => {
   }
 });
 
-// Registrar actividad
 app.post('/fincas/:id/actividades', async (req, res) => {
   const { id } = req.params;
   const { tipo, descripcion, fecha, foto_url } = req.body;
@@ -861,9 +812,6 @@ app.post('/fincas/:id/actividades', async (req, res) => {
   }
 });
 
-// ── Fotos (galería) ──────────────────────────────────────────────────
-
-// Listar fotos de una finca
 app.get('/fincas/:id/fotos', async (req, res) => {
   const { id } = req.params;
   try {
@@ -878,7 +826,6 @@ app.get('/fincas/:id/fotos', async (req, res) => {
   }
 });
 
-// Agregar foto a la finca (la subida del archivo ya ocurrió en Supabase Storage desde la app)
 app.post('/fincas/:id/fotos', async (req, res) => {
   const { id } = req.params;
   const { url } = req.body;
@@ -900,10 +847,9 @@ app.post('/fincas/:id/fotos', async (req, res) => {
 });
 
 // ============================================
-// AGENDA AGRÍCOLA (módulo Centro de Inteligencia Agrícola)
+// AGENDA AGRÍCOLA
 // ============================================
 
-// Listar eventos de un usuario
 app.get('/agenda', async (req, res) => {
   const { usuario_id } = req.query;
   if (!usuario_id) {
@@ -921,7 +867,6 @@ app.get('/agenda', async (req, res) => {
   }
 });
 
-// Crear evento
 app.post('/agenda', async (req, res) => {
   const { usuario_id, finca_id, titulo, descripcion, fecha, hora, tipo, repetir } = req.body;
 
@@ -943,7 +888,6 @@ app.post('/agenda', async (req, res) => {
   }
 });
 
-// Eliminar evento
 app.delete('/agenda/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -959,11 +903,9 @@ app.delete('/agenda/:id', async (req, res) => {
 });
 
 // ============================================
-// LOGÍSTICA (módulo Centro de Inteligencia Agrícola)
-// estado: 'solicitado' | 'aceptado' | 'en_camino' | 'entregado' | 'cancelado'
+// LOGÍSTICA DE TRANSPORTE
 // ============================================
 
-// Mis solicitudes (como quien pide el transporte)
 app.get('/transporte/mis-solicitudes', async (req, res) => {
   const { usuario_id } = req.query;
   if (!usuario_id) {
@@ -988,7 +930,6 @@ app.get('/transporte/mis-solicitudes', async (req, res) => {
   }
 });
 
-// Solicitudes disponibles para aceptar (panel transportista)
 app.get('/transporte/disponibles', async (req, res) => {
   try {
     const result = await pool.query(
@@ -1008,7 +949,6 @@ app.get('/transporte/disponibles', async (req, res) => {
   }
 });
 
-// Obtener una solicitud por ID
 app.get('/transporte/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -1032,7 +972,6 @@ app.get('/transporte/:id', async (req, res) => {
   }
 });
 
-// Crear solicitud de transporte
 app.post('/transporte', async (req, res) => {
   const { usuario_id, origen_direccion, origen_lat, origen_lon, destino_direccion, nota } = req.body;
 
@@ -1060,7 +999,6 @@ app.post('/transporte', async (req, res) => {
   }
 });
 
-// Actualizar estado (aceptar / iniciar viaje / marcar entregado)
 app.put('/transporte/:id/estado', async (req, res) => {
   const { id } = req.params;
   const { estado, transportista_id } = req.body;
@@ -1091,10 +1029,9 @@ app.put('/transporte/:id/estado', async (req, res) => {
 });
 
 // ============================================
-// GANADERÍA (AgroConecta OS)
+// GANADERÍA
 // ============================================
 
-// Listar animales de un usuario
 app.get('/ganaderia/animales', async (req, res) => {
   const { usuario_id } = req.query;
   if (!usuario_id) {
@@ -1112,7 +1049,6 @@ app.get('/ganaderia/animales', async (req, res) => {
   }
 });
 
-// Obtener un animal por ID
 app.get('/ganaderia/animales/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -1127,7 +1063,6 @@ app.get('/ganaderia/animales/:id', async (req, res) => {
   }
 });
 
-// Crear animal
 app.post('/ganaderia/animales', async (req, res) => {
   const { usuario_id, tipo, identificador, raza, sexo, fecha_nacimiento, peso_actual } = req.body;
 
@@ -1153,7 +1088,6 @@ app.post('/ganaderia/animales', async (req, res) => {
   }
 });
 
-// ── Peso ──────────────────────────────────────────────────────────────
 app.get('/ganaderia/animales/:id/pesos', async (req, res) => {
   const { id } = req.params;
   try {
@@ -1181,7 +1115,6 @@ app.post('/ganaderia/animales/:id/pesos', async (req, res) => {
       `INSERT INTO registros_peso (animal_id, peso, fecha) VALUES ($1,$2,$3) RETURNING *`,
       [id, Number(peso), fecha]
     );
-    // Actualiza también el peso_actual del animal
     await pool.query(`UPDATE animales SET peso_actual = $1 WHERE animal_id = $2`, [Number(peso), id]);
 
     return res.status(201).json(result.rows[0]);
@@ -1191,7 +1124,6 @@ app.post('/ganaderia/animales/:id/pesos', async (req, res) => {
   }
 });
 
-// ── Control sanitario ────────────────────────────────────────────────
 app.get('/ganaderia/animales/:id/sanitario', async (req, res) => {
   const { id } = req.params;
   try {
@@ -1228,12 +1160,10 @@ app.post('/ganaderia/animales/:id/sanitario', async (req, res) => {
   }
 });
 
-
 // ============================================
-// ACUICULTURA Y PESCA (AgroConecta OS)
+// ACUICULTURA Y PESCA
 // ============================================
 
-// Listar estanques de un usuario
 app.get('/acuicultura/estanques', async (req, res) => {
   const { usuario_id } = req.query;
   if (!usuario_id) {
@@ -1251,7 +1181,6 @@ app.get('/acuicultura/estanques', async (req, res) => {
   }
 });
 
-// Obtener un estanque por ID
 app.get('/acuicultura/estanques/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -1266,7 +1195,6 @@ app.get('/acuicultura/estanques/:id', async (req, res) => {
   }
 });
 
-// Crear estanque
 app.post('/acuicultura/estanques', async (req, res) => {
   const { usuario_id, especie, nombre, area_m2, cantidad_inicial, fecha_siembra } = req.body;
 
@@ -1292,7 +1220,6 @@ app.post('/acuicultura/estanques', async (req, res) => {
   }
 });
 
-// ── Calidad de agua ──────────────────────────────────────────────────
 app.get('/acuicultura/estanques/:id/calidad-agua', async (req, res) => {
   const { id } = req.params;
   try {
@@ -1335,150 +1262,6 @@ app.post('/acuicultura/estanques/:id/calidad-agua', async (req, res) => {
   }
 });
 
-// ── Alimentación ─────────────────────────────────────────────────────
-app.get('/acuicultura/estanques/:id/alimentacion', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await pool.query(
-      `SELECT * FROM registros_alimentacion_acuicola WHERE estanque_id = $1 ORDER BY fecha DESC`,
-      [id]
-    );
-    return res.status(200).json(result.rows);
-  } catch (error) {
-    console.error("❌ ERROR LISTAR ALIMENTACION:", error);
-    return res.status(500).json({ error: "Error al obtener alimentación" });
-  }
-});
-
-app.post('/acuicultura/estanques/:id/alimentacion', async (req, res) => {
-  const { id } = req.params;
-  const { cantidad_kg, tipo_alimento, fecha } = req.body;
-
-  if (cantidad_kg == null || !fecha) {
-    return res.status(400).json({ error: "Datos incompletos" });
-  }
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO registros_alimentacion_acuicola (estanque_id, cantidad_kg, tipo_alimento, fecha)
-       VALUES ($1,$2,$3,$4)
-       RETURNING *`,
-      [id, Number(cantidad_kg), tipo_alimento || null, fecha]
-    );
-    return res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error("❌ ERROR CREATE ALIMENTACION:", error);
-    return res.status(500).json({ error: "Error al registrar la alimentación" });
-  }
-});
-
-// ============================================
-// ACUICULTURA Y PESCA (AgroConecta OS)
-// ============================================
-
-// Listar estanques de un usuario
-app.get('/acuicultura/estanques', async (req, res) => {
-  const { usuario_id } = req.query;
-  if (!usuario_id) {
-    return res.status(400).json({ error: "Falta el parámetro 'usuario_id'" });
-  }
-  try {
-    const result = await pool.query(
-      `SELECT * FROM estanques WHERE usuario_id = $1 ORDER BY estanque_id DESC`,
-      [usuario_id]
-    );
-    return res.status(200).json(result.rows);
-  } catch (error) {
-    console.error("❌ ERROR LISTAR ESTANQUES:", error);
-    return res.status(500).json({ error: "Error al obtener estanques" });
-  }
-});
-
-// Obtener un estanque por ID
-app.get('/acuicultura/estanques/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await pool.query('SELECT * FROM estanques WHERE estanque_id = $1', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Estanque no encontrado" });
-    }
-    return res.status(200).json(result.rows[0]);
-  } catch (error) {
-    console.error("❌ ERROR GET ESTANQUE:", error);
-    return res.status(500).json({ error: "Error al obtener el estanque" });
-  }
-});
-
-// Crear estanque
-app.post('/acuicultura/estanques', async (req, res) => {
-  const { usuario_id, especie, nombre, area_m2, cantidad_inicial, fecha_siembra } = req.body;
-
-  if (!usuario_id || !especie || !nombre || !cantidad_inicial) {
-    return res.status(400).json({ error: "Datos incompletos" });
-  }
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO estanques (usuario_id, especie, nombre, area_m2, cantidad_inicial, cantidad_actual, fecha_siembra, estado)
-       VALUES ($1,$2,$3,$4,$5,$5,$6,'Activo')
-       RETURNING *`,
-      [
-        usuario_id, especie, nombre,
-        area_m2 != null ? Number(area_m2) : null,
-        Number(cantidad_inicial), fecha_siembra || null
-      ]
-    );
-    return res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error("❌ ERROR CREATE ESTANQUE:", error);
-    return res.status(500).json({ error: "Error al registrar el estanque" });
-  }
-});
-
-// ── Calidad de agua ──────────────────────────────────────────────────
-app.get('/acuicultura/estanques/:id/calidad-agua', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await pool.query(
-      `SELECT * FROM registros_calidad_agua WHERE estanque_id = $1 ORDER BY fecha ASC`,
-      [id]
-    );
-    return res.status(200).json(result.rows);
-  } catch (error) {
-    console.error("❌ ERROR LISTAR CALIDAD AGUA:", error);
-    return res.status(500).json({ error: "Error al obtener mediciones de agua" });
-  }
-});
-
-app.post('/acuicultura/estanques/:id/calidad-agua', async (req, res) => {
-  const { id } = req.params;
-  const { temperatura, ph, oxigeno_disuelto, fecha } = req.body;
-
-  if (!fecha) {
-    return res.status(400).json({ error: "Falta la fecha" });
-  }
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO registros_calidad_agua (estanque_id, temperatura, ph, oxigeno_disuelto, fecha)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING *`,
-      [
-        id,
-        temperatura != null ? Number(temperatura) : null,
-        ph != null ? Number(ph) : null,
-        oxigeno_disuelto != null ? Number(oxigeno_disuelto) : null,
-        fecha
-      ]
-    );
-    return res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error("❌ ERROR CREATE CALIDAD AGUA:", error);
-    return res.status(500).json({ error: "Error al registrar la medición" });
-  }
-});
-
-// ── Alimentación ─────────────────────────────────────────────────────
 app.get('/acuicultura/estanques/:id/alimentacion', async (req, res) => {
   const { id } = req.params;
   try {
